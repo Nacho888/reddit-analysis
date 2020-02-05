@@ -127,3 +127,10 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Jetbrains IDE's
+.idea/
+psaw/.idea/
+
+# JSON backups folder
+psaw/backups/
