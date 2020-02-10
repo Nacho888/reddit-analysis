@@ -10,7 +10,7 @@ from tqdm import tqdm
 from datetime import datetime
 
 
-def convert_response(gen):
+def convert_response(gen):  # TODO: change to receive the data of the generator, not the whole generator
     """ Function to convert the response into a list with all the required data
 
         Parameters:
@@ -34,6 +34,9 @@ def convert_response(gen):
         result.append(dict_to_add)
 
     return result
+
+
+# TODO: parametrize even more the script (use)
 
 
 # List to store all queries with its _id's
@@ -72,6 +75,7 @@ with tqdm(desc="Queries performed", total=total_queries, position=0, leave=True)
                 # Posts before the most recent post obtained
                 most_recent_utc = submissions_list[0]["created_utc"]
                 # TODO: if we omit "limit" a full historical search will be performed (time compromise?)
+                # TODO: make a better use of the generator
                 response = api.search_submissions(q=query, before=most_recent_utc, limit=5)
                 submissions_list = convert_response(response)
 
