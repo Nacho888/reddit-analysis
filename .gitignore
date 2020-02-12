@@ -134,3 +134,6 @@ psaw/.idea/
 
 # JSON backups folder
 psaw/backups/
+
+# Scripts for small tests
+test.py

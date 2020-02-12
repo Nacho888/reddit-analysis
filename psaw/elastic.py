@@ -1,5 +1,12 @@
 import uuid
+import logging
+#####
+import logging_factory
+#####
 from elasticsearch import Elasticsearch, helpers, ElasticsearchException
+#####
+logger = logging_factory.get_module_logger("elastic", logging.DEBUG)
+logger_err = logging_factory.get_module_logger("elastic", logging.ERROR)
 
 
 def setup_for_index(data, _index, _type):
@@ -27,10 +34,14 @@ def setup_for_index(data, _index, _type):
         }
 
 
-def index_data(data, _index, _type):
+def index_data(host, port, data, _index, _type):
     """ Function to index the data with ElasticSearch
 
         Parameters:
+            host -- string
+                host to connect
+            port -- string
+                port to connect
             data -- list
                 list of documents
             _index -- string
@@ -40,7 +51,8 @@ def index_data(data, _index, _type):
     """
 
     try:
-        es = Elasticsearch([{'host': 'localhost', 'port': '9200'}])
+        logger.debug("Trying to establish connection with ElasticSearch: host '{}' - port '{}'".format(host, port))
+        es = Elasticsearch([{"host": host, "port": port}])
 
         # Create index (if not exists)
         if not es.indices.exists(index=_index):
@@ -48,13 +60,12 @@ def index_data(data, _index, _type):
 
         # Load data
         try:
-            # TODO: move prints to log
-            # print('\nIndexing using Elasticsearch - helpers.bulk()')
+            logger.debug('Trying to index with ElasticSearch - helpers.bulk()')
             resp = helpers.bulk(es, setup_for_index(data, _index, _type), index=_index, doc_type=_type)
-            # print('helpers.bulk() - OK - RESPONSE:', resp)
+            logger.debug('helpers.bulk() - OK - RESPONSE:', resp)
         except ElasticsearchException as err:
-            # print('helpers.bulk() - ERROR:', err)
+            logger_err.error('helpers.bulk() - ERROR:', err)
             quit()
-    except ConnectionRefusedError as err:
-        print("You have to open ElasticSearch client!")
-        pass
+    except ElasticsearchException:
+        logger_err.error("ElasticSearch client problem (check if open)")
+        quit()
