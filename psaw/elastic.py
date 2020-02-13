@@ -1,12 +1,13 @@
 import uuid
 import logging
+import sys
 #####
 import logging_factory
 #####
 from elasticsearch import Elasticsearch, helpers, ElasticsearchException
 #####
+logger_err = logging_factory.get_module_logger("elastic_err", logging.ERROR)
 logger = logging_factory.get_module_logger("elastic", logging.DEBUG)
-logger_err = logging_factory.get_module_logger("elastic", logging.ERROR)
 
 
 def setup_for_index(data, _index, _type):
@@ -65,7 +66,7 @@ def index_data(host, port, data, _index, _type):
             logger.debug('helpers.bulk() - OK - RESPONSE:', resp)
         except ElasticsearchException as err:
             logger_err.error('helpers.bulk() - ERROR:', err)
-            quit()
+            sys.exit(1)
     except ElasticsearchException:
         logger_err.error("ElasticSearch client problem (check if open)")
-        quit()
+        sys.exit(1)

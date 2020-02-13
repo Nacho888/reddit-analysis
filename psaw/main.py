@@ -1,9 +1,10 @@
 import codecs
 import json
+import sys
 import time
-import traceback
 import os
 import logging
+import csv
 #####
 import elastic
 import excel_reader
@@ -12,6 +13,7 @@ import logging_factory
 from psaw import PushshiftAPI
 from datetime import datetime
 #####
+logger_err = logging_factory.get_module_logger("main_err", logging.ERROR)
 logger = logging_factory.get_module_logger("main", logging.DEBUG)
 
 
@@ -146,7 +148,7 @@ def extract_posts(excel_path, want_to_backup, want_to_index, host, port, _index,
                     # File backup
                     try:
                         save_path = "./backups/"
-                        # Create, if not present, folder to store posts" backups
+                        # Create, if not present, folder to store posts' backups
                         if not os.path.isdir(save_path):
                             os.mkdir(save_path)
 
@@ -169,7 +171,7 @@ def extract_posts(excel_path, want_to_backup, want_to_index, host, port, _index,
                             json.dump(submissions_list, outfile, indent=4)
                         logger.debug("File saved")
                     except UnicodeEncodeError:
-                        logger.exception("Encoding error has occurred")
+                        logger_err.exception("Encoding error has occurred")
             else:
                 # Add error to print it later
                 errors.append("No results found for query: '{}'".format(query))
@@ -188,7 +190,7 @@ def extract_posts(excel_path, want_to_backup, want_to_index, host, port, _index,
     # Show errors (if present)
     if len(errors) > 0:
         for e in errors:
-            logger.error(e)
+            logger_err.error(e)
 
     logger.debug("All {} queries performed in a total of {} seconds".format(
         total_queries,
@@ -207,9 +209,27 @@ def extract_posts(excel_path, want_to_backup, want_to_index, host, port, _index,
                 json.dump(all_queries, outfile, indent=4)
             logger.debug("File saved")
         except UnicodeEncodeError:
-            logger.exception("Encoding error has occurred")
+            logger_err.exception("Encoding error has occurred")
 
     #####
 
 
-extract_posts("./excel/little_scales.xlsm", True, True, "localhost", "9200", "depression_index", "reddit_doc", 5)
+def main(argv):
+    if len(argv) == 8:
+        try:
+            argv[1] = argv[1].lower() == 'true'
+            argv[2] = argv[2].lower() == 'true'
+            argv[7] = int(argv[7])
+            extract_posts(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7])
+        except ValueError:
+            logger_err.error("Invalid type of parameters")
+            sys.exit(1)
+    else:
+        logger_err.error("Invalid amount of parameters")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
+
+# extract_posts("./excel/little_scales.xlsm", True, False, "localhost", "9200", "depression_index", "reddit_doc", 10)
