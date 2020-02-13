@@ -1,22 +1,33 @@
-from psaw import PushshiftAPI
+import os
 import time
+from psaw import PushshiftAPI
+from func_timeout import FunctionTimedOut, func_set_timeout
 
-# API
-api = PushshiftAPI()
 
-gen = api.search_comments(q='i feel sad')
+@func_set_timeout(5)
+def extract_posts_test():
+    # API
+    api = PushshiftAPI()
 
-max_response_cache = 10000
-cache = []
+    gen = api.search_comments(q='i feel sad')
 
-start = time.time()
-for c in gen:
-    print(c.d_)
-    cache.append(c)
+    max_response_cache = 10000
+    cache = []
 
-    # Omit this test to actually return all results (watch out for the time)
-    if len(cache) >= max_response_cache:
-        break
+    start = time.time()
+    for c in gen:
+        print(c.d_)
+        cache.append(c)
 
-end = time.time()
-print(end - start)  # q = "i feel sad" cache = 10000 ~time = 112 sec
+        # Omit this test to actually return all results (watch out for the time)
+        if len(cache) >= max_response_cache:
+            break
+
+    end = time.time()
+    print(end - start)  # q = "i feel sad" cache = 10000 ~time = 112 sec
+
+
+try:
+    extract_posts_test()
+except FunctionTimedOut:
+    print("Function has timed out")

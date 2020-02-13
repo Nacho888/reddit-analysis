@@ -12,6 +12,7 @@ import logging_factory
 #####
 from psaw import PushshiftAPI
 from datetime import datetime
+from func_timeout import FunctionTimedOut, func_set_timeout
 #####
 logger_err = logging_factory.get_module_logger("main_err", logging.ERROR)
 logger = logging_factory.get_module_logger("main", logging.DEBUG)
@@ -33,13 +34,17 @@ def convert_response(gen, max_cache_size):
     cache = []
 
     for post in gen:
-        dict_to_add = {"title": post.d_["title"],
-                       "author": post.d_["author"],
-                       "subreddit": post.d_["subreddit"],
-                       "created_utc": post.d_["created_utc"],
-                       "selftext": post.d_["selftext"]}
+        try:
+            dict_to_add = {"title": post.d_["title"],
+                           "author": post.d_["author"],
+                           "subreddit": post.d_["subreddit"],
+                           "created_utc": post.d_["created_utc"],
+                           "selftext": post.d_["selftext"]}
 
-        cache.append(dict_to_add)
+            cache.append(dict_to_add)
+        except KeyError:
+            logger_err.error("Key not present")
+            break
 
         if len(cache) >= max_cache_size:
             break
@@ -101,10 +106,12 @@ def extract_posts(excel_path, want_to_backup, want_to_index, host, port, _index,
     total_queries = sum([len(x) for x in queries_and_scales.values()])
     current_query = 1
 
-    logger.debug("Starting...")
+    logger.debug("Starting...\n")
 
     for scale in queries_and_scales:
         for query in queries_and_scales[scale]:
+
+            logger.debug("Trying to perform query: '{}'".format(query))
 
             # Measure elapsed time
             start = time.time()
@@ -137,7 +144,7 @@ def extract_posts(excel_path, want_to_backup, want_to_index, host, port, _index,
                 if want_to_index:
                     # Index with ElasticSearch posts' list
                     elastic.index_data(host, port, submissions_list, _index, _type)
-                    logger.debug("Documents indexed")
+                    logger.debug("{} documents indexed".format(len(submissions_list)))
 
                 # Add to global queries list
                 all_queries.append(submissions_list)
@@ -169,7 +176,7 @@ def extract_posts(excel_path, want_to_backup, want_to_index, host, port, _index,
                     try:
                         with codecs.open(save_path + filename, "w", encoding="utf8") as outfile:
                             json.dump(submissions_list, outfile, indent=4)
-                        logger.debug("File saved")
+                        logger.debug("'{}' saved".format(filename))
                     except UnicodeEncodeError:
                         logger_err.exception("Encoding error has occurred")
             else:
@@ -181,7 +188,8 @@ def extract_posts(excel_path, want_to_backup, want_to_index, host, port, _index,
             total_elapsed_time += elapsed_time
 
             # Print stats
-            logger.debug("Query {} of {} performed in {} seconds".format(
+            logger.debug("Query: '{}' - {} of {} performed in {} seconds\n".format(
+                query,
                 current_query,
                 total_queries,
                 '%.3f' % elapsed_time))
@@ -207,7 +215,7 @@ def extract_posts(excel_path, want_to_backup, want_to_index, host, port, _index,
         try:
             with codecs.open(save_path + filename, "w", encoding="utf8") as outfile:
                 json.dump(all_queries, outfile, indent=4)
-            logger.debug("File saved")
+            logger.debug("'{}' saved".format(filename))
         except UnicodeEncodeError:
             logger_err.exception("Encoding error has occurred")
 
@@ -220,6 +228,11 @@ def main(argv):
             argv[1] = argv[1].lower() == 'true'
             argv[2] = argv[2].lower() == 'true'
             argv[7] = int(argv[7])
+
+            logs_path = "./logs/"
+            # Create, if not present, folder to store program's logs
+            if not os.path.isdir(logs_path):
+                os.mkdir(logs_path)
             extract_posts(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7])
         except ValueError:
             logger_err.error("Invalid type of parameters")

@@ -54,6 +54,7 @@ def index_data(host, port, data, _index, _type):
     try:
         logger.debug("Trying to establish connection with ElasticSearch: host '{}' - port '{}'".format(host, port))
         es = Elasticsearch([{"host": host, "port": port}])
+        logger.debug("Connection established")
 
         # Create index (if not exists)
         if not es.indices.exists(index=_index):
@@ -61,11 +62,11 @@ def index_data(host, port, data, _index, _type):
 
         # Load data
         try:
-            logger.debug('Trying to index with ElasticSearch - helpers.bulk()')
+            logger.debug("Trying to index with ElasticSearch - helpers.bulk()")
             resp = helpers.bulk(es, setup_for_index(data, _index, _type), index=_index, doc_type=_type)
-            logger.debug('helpers.bulk() - OK - RESPONSE:', resp)
+            logger.debug("helpers.bulk() - OK")
         except ElasticsearchException as err:
-            logger_err.error('helpers.bulk() - ERROR:', err)
+            logger_err.error("helpers.bulk() - ERROR")
             sys.exit(1)
     except ElasticsearchException:
         logger_err.error("ElasticSearch client problem (check if open)")
