@@ -4,7 +4,6 @@ import sys
 import time
 import os
 import logging
-import csv
 #####
 import elastic
 import excel_reader
@@ -12,7 +11,6 @@ import logging_factory
 #####
 from psaw import PushshiftAPI
 from datetime import datetime
-from func_timeout import FunctionTimedOut, func_set_timeout
 #####
 logger_err = logging_factory.get_module_logger("main_err", logging.ERROR)
 logger = logging_factory.get_module_logger("main", logging.DEBUG)

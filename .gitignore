@@ -136,4 +136,5 @@ psaw/.idea/
 psaw/backups/
 
 # Scripts for small tests
+psaw/test.py
 test.py
