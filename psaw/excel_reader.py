@@ -6,22 +6,17 @@ import logging_factory
 logger = logging_factory.get_module_logger("excel_reader", logging.DEBUG)
 
 
-def get_queries_and_scales(path, start_row, scales_column, queries_column):
-    """ Function to obtain the scales' names and queries
+def get_queries_and_scales(path: str, start_row: int, scales_column: int, queries_column: int):
+    """
+    Function to obtain the scales' names and queries
 
-            Parameters:
-                path -- string
-                    the path where the excel spreadsheet is located
-                start_row - int
-                    row number where the first query is located
-                scales_column -- int
-                    column number where the scales are located
-                queries_column - int
-                    column number where the queries are located
-            Returns:
-                result -- dict
-                    a dictionary with scales as keys and list of queries as values
-        """
+    :param path: str - the path where the excel spreadsheet is located
+    :param start_row: int - row number where the first query is located
+    :param scales_column: int - column number where the scales are located
+    :param queries_column: int - column number where the queries are located
+    :return: result: dict - a dictionary with scales as keys and list of queries as values
+
+    """
 
     # Workbook object is created
     wb_obj = openpyxl.load_workbook(path)

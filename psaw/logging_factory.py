@@ -1,7 +1,21 @@
 import logging
+import os
+#####
 
 
-def get_module_logger(mod_name, level):
+def get_module_logger(mod_name: str, level: str):
+    """
+    Function that creates a logger based on the module that's going to use it and
+    gives it a level to show by console and save to file, or just to save to file
+
+    :param mod_name: str - the name of the module that requests the log
+    :param level: str (logging.ERROR or logging.DEBUG) - to decide how to show/store the log
+    :return: logger - the configured logger
+
+    """
+
+    check_structure()
+
     logger = logging.getLogger(mod_name)
     logger.setLevel(level)
 
@@ -34,3 +48,17 @@ def get_module_logger(mod_name, level):
         logger.addHandler(fh)
 
     return logger
+
+
+def check_structure():
+    logs_path = "./logs/"
+    # Create, if not present, folder to store program's logs (and logs)
+    try:
+        if not os.path.isdir(logs_path):
+            os.mkdir(logs_path)
+            open(logs_path + "debug.log", "x")
+            open(logs_path + "errors.log", "x")
+    except FileExistsError as e:
+        print("File {} already exists".format(e))
+    except FileNotFoundError as e:
+        print.error("File {} not found".format(e))

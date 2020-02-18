@@ -1,60 +1,54 @@
 import uuid
 import logging
 import sys
+import os
 #####
 import logging_factory
 #####
+from typing import Optional
 from elasticsearch import Elasticsearch, helpers, ElasticsearchException
 #####
 logger_err = logging_factory.get_module_logger("elastic_err", logging.ERROR)
 logger = logging_factory.get_module_logger("elastic", logging.DEBUG)
 
 
-def setup_for_index(data, _index, _type):
-    """ Function to add the necessary fields to index with ElasticSearch
+def setup_for_index(data: list, _index: str, _type: str, _id: Optional[int] = None):
+    """
+    Function to add the necessary fields to index with ElasticSearch
 
-        Parameters:
-            data -- list
-                list of documents
-            _index -- string
-                the index name
-            _type -- string
-                the document type
+    :param data: list - the data to modify and set ready to index
+    :param _index: str - the index name
+    :param _type: str - the document type
+    :param _id: int/None - the id to assign to the document or if None an automatically generated uuid4
+    :return yielded document with all the required data
 
-        Returns:
-            yield -- generator/iterator
-                the documents
     """
 
     for doc in data:
         yield {
             "_index": _index,
-            "_id": uuid.uuid4(),
+            "_id": uuid.uuid4() if _id is None else _id,
             "_type": _type,
             "_source": doc
         }
 
 
-def index_data(host, port, data, _index, _type):
-    """ Function to index the data with ElasticSearch
+def index_data(data: list, host: str, port: str, _index: str, _type: str):
+    """
+    Function to index the data with ElasticSearch
 
-        Parameters:
-            host -- string
-                host to connect
-            port -- string
-                port to connect
-            data -- list
-                list of documents
-            _index -- string
-                the index name
-            _type -- string
-                the document type
+    :param data: list - the data to index (coming as a list of json line objects)
+    :param host: str - host to connect to
+    :param port: str - port to connect to
+    :param _index: str - the index name
+    :param _type: str - the document type
+    :return: int - number of documents successfully indexed
+
     """
 
     try:
-        logger.debug("Trying to establish connection with ElasticSearch: host '{}' - port '{}'".format(host, port))
         es = Elasticsearch([{"host": host, "port": port}])
-        logger.debug("Connection established")
+        # logger.debug("Connection established")
 
         # Create index (if not exists)
         if not es.indices.exists(index=_index):
@@ -62,12 +56,49 @@ def index_data(host, port, data, _index, _type):
 
         # Load data
         try:
-            logger.debug("Trying to index with ElasticSearch - helpers.bulk()")
-            resp = helpers.bulk(es, setup_for_index(data, _index, _type), index=_index, doc_type=_type)
-            logger.debug("helpers.bulk() - OK")
+            resp = helpers.bulk(es, setup_for_index(data, _index, _type, None), index=_index, doc_type=_type)
         except ElasticsearchException as err:
-            logger_err.error("helpers.bulk() - ERROR")
+            logger_err.error("helpers.bulk() - ERROR\n")
             sys.exit(1)
     except ElasticsearchException:
         logger_err.error("ElasticSearch client problem (check if open)")
         sys.exit(1)
+
+    return resp[0] if resp is not None else 0
+
+
+def index_from_file(path: str, host: str, port: str, _index: str, _type: str, limit: int):
+    """
+    Function that given the path where all the backups are stored, indexes all the documents
+
+    :param path: str - path where the backups' folder is
+    :param host: str - host to connect to
+    :param port: str - port to connect to
+    :param _index: str - the index name
+    :param _type: str - the document type
+    :param limit: int - amount of lines to be
+
+    """
+
+    lines = []
+    ok_docs = 0
+
+    logger.debug("Parameters to establish connection with ElasticSearch -> (host: '{}', port: '{}')".format(host, port))
+
+    for subdir, dirs, files in os.walk(path):
+        for file in files:
+            for line in open(os.path.join(subdir, file)):
+                if len(lines) >= limit:
+                    ok_docs += index_data(lines, host, port, _index, _type)
+                    lines = []
+                else:
+                    lines.append(line)
+            # There's remaining documents
+            if len(lines) > 0:
+                ok_docs += index_data(lines, host, port, _index, _type)
+                lines = []
+
+    logger.debug("{} documents indexed successfully".format(ok_docs))
+
+
+# index_from_file("./backups", "localhost", "9200", "depression_index", "reddit_doc", 500)
