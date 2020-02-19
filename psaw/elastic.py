@@ -80,6 +80,8 @@ def index_from_file(path: str, host: str, port: str, _index: str, _type: str, li
 
     """
 
+    # TODO: seems to be indexing one document less per file...
+
     lines = []
     ok_docs = 0
 
@@ -88,7 +90,7 @@ def index_from_file(path: str, host: str, port: str, _index: str, _type: str, li
     for subdir, dirs, files in os.walk(path):
         for file in files:
             for line in open(os.path.join(subdir, file)):
-                if len(lines) >= limit:
+                if len(lines) == limit:
                     ok_docs += index_data(lines, host, port, _index, _type)
                     lines = []
                 else:
@@ -98,7 +100,7 @@ def index_from_file(path: str, host: str, port: str, _index: str, _type: str, li
                 ok_docs += index_data(lines, host, port, _index, _type)
                 lines = []
 
-    logger.debug("{} documents indexed successfully".format(ok_docs))
+    logger.debug("{} documents indexed successfully\n".format(ok_docs))
 
 
 # index_from_file("./backups", "localhost", "9200", "depression_index", "reddit_doc", 500)

@@ -59,7 +59,7 @@ def extract_posts(excel_path: str, max_posts_per_query: int):
 
     # From row [5 - end]
     # Column 2 (B) stores scale names, column 4 (D) stores queries
-    queries_and_scales = excel_reader.get_queries_and_scales(excel_path, 5, 2, 4)
+    queries_and_scales = excel_reader.get_queries_and_scales(excel_path, 5, 2, 4, 5)
 
     thematic = True
 
@@ -81,7 +81,7 @@ def extract_posts(excel_path: str, max_posts_per_query: int):
     logger.debug("Starting...\n")
 
     for scale in queries_and_scales:
-        for query in queries_and_scales[scale]:
+        for query in queries_and_scales[scale]["queries"]:
 
             logger.debug("Trying to perform query: '{}'".format(query))
 
@@ -109,7 +109,10 @@ def extract_posts(excel_path: str, max_posts_per_query: int):
 
                     if post is not {}:
                         # Extra fields: current timestamp and query data
-                        post["parameters"] = {"query": query, "scale": scale, "thematic": thematic}
+                        post["parameters"] = {"query": query, "scale": scale, "thematic": thematic, "related": {
+                            "codes": queries_and_scales[scale]["codes"],
+                            "related_scales": queries_and_scales[scale]["related_scales"]
+                        }}
                         post["timestamp"] = get_timestamp()
 
                         #####
@@ -164,4 +167,5 @@ def get_timestamp():
 
     return int(timestamp)
 
-# extract_posts("./excel/scales.xlsm", 1000)
+
+extract_posts("./excel/scales.xlsx", 1)

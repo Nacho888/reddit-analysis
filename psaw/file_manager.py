@@ -1,6 +1,7 @@
 import json
 import os
 import logging
+import shutil
 #####
 import logging_factory
 #####
@@ -50,3 +51,10 @@ def write_post_to_backup(data: str, query: str, scale: str, timestamp: int):
     except UnicodeEncodeError:
         logger_err.exception("Encoding error has occurred")
         return False
+
+
+def del_backups():
+    path = "./backups"
+    if os.path.isdir(path):
+        shutil.rmtree(path)
+        logger.debug("Backups deleted successfully")
