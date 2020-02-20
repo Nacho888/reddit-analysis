@@ -61,4 +61,4 @@ def check_structure():
     except FileExistsError as e:
         print("File {} already exists".format(e))
     except FileNotFoundError as e:
-        print.error("File {} not found".format(e))
+        print("File {} not found".format(e))

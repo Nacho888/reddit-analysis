@@ -22,6 +22,8 @@ def write_post_to_backup(data: str, query: str, scale: str, timestamp: int):
 
     """
 
+    filename, directory = "", ""
+
     try:
         save_path = "./backups/"
         # Create, if not present, folder to store posts' backups

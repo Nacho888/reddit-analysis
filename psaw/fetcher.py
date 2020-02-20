@@ -1,20 +1,33 @@
-import codecs
-import json
-import sys
-import time
-import os
 import logging
+import time
 #####
 import excel_reader
-import logging_factory
 import file_manager
+import logging_factory
 #####
 from psaw import PushshiftAPI
 from datetime import datetime
-
 #####
 logger_err = logging_factory.get_module_logger("fetcher_err", logging.ERROR)
 logger = logging_factory.get_module_logger("fetcher", logging.DEBUG)
+
+
+def get_timestamp():
+    """
+    Function that returns the current timestamp
+
+    :return: timestamp: int - current timestamp
+    """
+
+    # Time format for UTC
+    time_format = "%Y-%m-%d %H:%M:%S"
+
+    timestamp = datetime.utcfromtimestamp(int(time.time())).strftime(time_format)
+    # +0001 for Spain GMT
+    date = datetime.strptime(timestamp + "+0001", time_format + "%z")
+    timestamp = date.timestamp()
+
+    return int(timestamp)
 
 
 def convert_response(post: dict):
@@ -26,6 +39,11 @@ def convert_response(post: dict):
     :return: updated_post: dict - the post the return containing only the required fields returned by the API
 
     """
+    try:
+        p_id = post.d_[id]
+    except KeyError:
+        p_id = "no_post_id_found"
+        pass
 
     try:
         updated_post = dict(id=post.d_["id"], url=post.d_["url"], title=post.d_["title"], author=post.d_["author"],
@@ -37,7 +55,7 @@ def convert_response(post: dict):
                             permalink=post.d_["permalink"])
 
     except KeyError as e:
-        logger_err.error(e)
+        logger_err.error("Key not found '{}' - skipping post with id: {}".format(e, p_id))
         updated_post = {}  # if it doesn't have all the requested fields, discard the whole post
         pass
 
@@ -78,10 +96,20 @@ def extract_posts(excel_path: str, max_posts_per_query: int):
     # Count of correct docs saved
     ok_docs = 0
 
+    # To store failed queries and directory errors
+    errors = []
+
     logger.debug("Starting...\n")
 
     for scale in queries_and_scales:
-        for query in queries_and_scales[scale]["queries"]:
+        for query_data in queries_and_scales[scale]:
+
+            # Related scales
+            related_codes = query_data[1]
+            related_scales = query_data[2]
+
+            # Actual query
+            query = query_data[0]
 
             logger.debug("Trying to perform query: '{}'".format(query))
 
@@ -90,9 +118,6 @@ def extract_posts(excel_path: str, max_posts_per_query: int):
 
             # Measure elapsed time
             start = time.time()
-
-            # To store failed queries and directory errors
-            errors = []
 
             # Base call with 1 post to extract most recent date
             response = api.search_submissions(q=query, sort_type="created_utc", sort="desc", limit=1)
@@ -110,8 +135,8 @@ def extract_posts(excel_path: str, max_posts_per_query: int):
                     if post is not {}:
                         # Extra fields: current timestamp and query data
                         post["parameters"] = {"query": query, "scale": scale, "thematic": thematic, "related": {
-                            "codes": queries_and_scales[scale]["codes"],
-                            "related_scales": queries_and_scales[scale]["related_scales"]
+                            "codes": related_codes,
+                            "related_scales": related_scales
                         }}
                         post["timestamp"] = get_timestamp()
 
@@ -150,22 +175,4 @@ def extract_posts(excel_path: str, max_posts_per_query: int):
         '%.3f' % total_elapsed_time))
 
 
-def get_timestamp():
-    """
-    Function that returns the current timestamp
-
-    :return: timestamp: int - current timestamp
-    """
-
-    # Time format for UTC
-    time_format = "%Y-%m-%d %H:%M:%S"
-
-    timestamp = datetime.utcfromtimestamp(int(time.time())).strftime(time_format)
-    # +0001 for Spain GMT
-    date = datetime.strptime(timestamp + "+0001", time_format + "%z")
-    timestamp = date.timestamp()
-
-    return int(timestamp)
-
-
-extract_posts("./excel/scales.xlsx", 1)
+# extract_posts("./excel/scales.xlsx", 10)

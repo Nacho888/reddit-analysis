@@ -57,7 +57,7 @@ def index_data(data: list, host: str, port: str, _index: str, _type: str):
         # Load data
         try:
             resp = helpers.bulk(es, setup_for_index(data, _index, _type, None), index=_index, doc_type=_type)
-        except ElasticsearchException as err:
+        except ElasticsearchException:
             logger_err.error("helpers.bulk() - ERROR\n")
             sys.exit(1)
     except ElasticsearchException:
