@@ -31,6 +31,7 @@ def write_post_to_backup(data: str, query: str, scale: str, timestamp: int):
             os.mkdir(save_path)
 
         query_name_file = query.replace(" ", "-")
+        query_name_file = query_name_file.strip()
         filename = "{}_{}.jsonl".format(query_name_file, timestamp)
 
         # One directory per scale
@@ -46,17 +47,23 @@ def write_post_to_backup(data: str, query: str, scale: str, timestamp: int):
 
     # Write .jsonl file backup
     try:
-        with open(save_path + filename, 'a+') as outfile:
+        with open(os.path.join(save_path, filename), 'a+') as outfile:
             json.dump(data, outfile)
             outfile.write('\n')
             return True
+    except (OSError, IOError):
+        logger_err.error("Read/Write error has occurred with file '{}'".format(filename))
+        return False
     except UnicodeEncodeError:
-        logger_err.exception("Encoding error has occurred")
+        logger_err.error("Encoding error has occurred")
         return False
 
 
 def del_backups():
     path = "./backups"
     if os.path.isdir(path):
-        shutil.rmtree(path)
-        logger.debug("Backups deleted successfully")
+        try:
+            shutil.rmtree(path)
+            logger.debug("Backups deleted successfully")
+        except FileNotFoundError:
+            logger_err.error("Error when deleting backups' folder")

@@ -27,7 +27,13 @@ def get_timestamp():
     date = datetime.strptime(timestamp + "+0001", time_format + "%z")
     timestamp = date.timestamp()
 
-    return int(timestamp)
+    try:
+        result = int(timestamp)
+    except ValueError:
+        result = 0
+        logger_err.error('Date conversion incorrect for timestamp: {}'.format(timestamp))
+
+    return result
 
 
 def convert_response(post: dict):
@@ -55,7 +61,7 @@ def convert_response(post: dict):
                             permalink=post.d_["permalink"])
 
     except KeyError as e:
-        logger_err.error("Key not found '{}' - skipping post with id: {}".format(e, p_id))
+        logger_err.error("Key not found [{}] - skipping post with id: {}".format(e, p_id))
         updated_post = {}  # if it doesn't have all the requested fields, discard the whole post
         pass
 
@@ -121,7 +127,7 @@ def extract_posts(excel_path: str, max_posts_per_query: int):
 
             # Base call with 1 post to extract most recent date
             response = api.search_submissions(q=query, sort_type="created_utc", sort="desc", limit=1)
-            base_dict = convert_response(next(response))
+            base_dict = convert_response(next(response, False))
 
             if base_dict:  # We have obtained some result for the query
 
@@ -175,4 +181,4 @@ def extract_posts(excel_path: str, max_posts_per_query: int):
         '%.3f' % total_elapsed_time))
 
 
-# extract_posts("./excel/scales.xlsx", 10)
+extract_posts("./excel/one_query.xlsx", 10)

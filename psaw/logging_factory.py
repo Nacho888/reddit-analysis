@@ -56,8 +56,8 @@ def check_structure():
     try:
         if not os.path.isdir(logs_path):
             os.mkdir(logs_path)
-            open(logs_path + "debug.log", "x")
-            open(logs_path + "errors.log", "x")
+            open(os.path.join(logs_path, "debug.log"), "x")
+            open(os.path.join(logs_path, "errors.log"), "x")
     except FileExistsError as e:
         print("File {} already exists".format(e))
     except FileNotFoundError as e:

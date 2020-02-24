@@ -49,14 +49,18 @@ def get_queries_and_scales(path: str, start_row: int, scales_column: int, querie
         related_scales = []
 
         if related_code is not None:
-            related_code = str(related_code)  # Cast to string just in case we have to split it later
-            to_check_codes = convert_code(related_code)
-            for c in to_check_codes:
-                if code_present(wb_obj, c, start_row, related_column):
-                    codes.append(c)
-                else:
-                    logger_err.error("Code '{}' appears only one time".format(c))
-            related_scales = get_related_scales(wb_obj, current_scale, codes, start_row, scales_column, related_column)
+            try:
+                related_code = str(related_code)  # Cast to string just in case we have to split it later
+                to_check_codes = convert_code(related_code)
+                for c in to_check_codes:
+                    if code_present(wb_obj, c, start_row, related_column):
+                        codes.append(c)
+                    else:
+                        logger_err.error("Code '{}' appears only one time".format(c))
+                related_scales = get_related_scales(wb_obj, current_scale, codes, start_row, scales_column,
+                                                    related_column)
+            except ValueError:
+                logger_err.error("Error when casting code in (row: {}, col:{})".format(i, related_column))
 
         to_add = []
         if query is not None:
@@ -103,24 +107,29 @@ def get_related_scales(wb_obj, current_scale: str, codes: list, start_row: int, 
     for code in codes:
 
         for i in range(m_row, start_row - 1, -1):
-            related_code = str(sheet_obj.cell(row=i, column=related_column).value)
+            try:
+                related_code = str(sheet_obj.cell(row=i, column=related_column).value)
 
-            if related_code != "None":  # Empty cell
+                if related_code != "None":  # Empty cell
 
-                codes = convert_code(related_code)
+                    codes = convert_code(related_code)
 
-                if code in codes:  # Code is present in cell
-                    scale = sheet_obj.cell(row=i, column=scales_column).value
+                    if code in codes:  # Code is present in cell
+                        scale = sheet_obj.cell(row=i, column=scales_column).value
 
-                    # Row with code, but maybe it doesn't have the scale name
-                    # (merged cells - go back until we find the name)
-                    j = i
-                    while scale is None:
-                        scale = sheet_obj.cell(row=j, column=scales_column).value
-                        j -= 1
+                        # Row with code, but maybe it doesn't have the scale name
+                        # (merged cells - go back until we find the name)
+                        j = i
+                        while scale is None:
+                            scale = sheet_obj.cell(row=j, column=scales_column).value
+                            j -= 1
 
-                    if scale not in result and scale != current_scale:
-                        result.append(scale)
+                        if scale not in result and scale != current_scale:
+                            result.append(scale)
+            except ValueError:
+                result = []
+                logger_err.error("Error when casting code in (row: {}, col:{})".format(i, related_column))
+                break
 
     return result
 
@@ -147,16 +156,29 @@ def convert_code(code: str):
 
 
 def code_present(wb_obj, code: str, start_row: int, related_column: int):
+    """
+    Function to check if a certain relationship code is present in the spreadsheet
+
+    :param wb_obj: the current Excel workbook
+    :param code: str - the code to check
+    :param start_row: int - row number where the first query is located
+    :param related_column: int - column number where the relationship between queries in different scales is located
+    :return: found: bool - if the code is found or not
+    """
     sheet_obj = wb_obj.active
     m_row = sheet_obj.max_row
 
     found = False  # scale associated has been found
     for i in range(start_row, m_row + 1):
-        related_code = str(sheet_obj.cell(row=i, column=related_column).value)
+        try:
+            related_code = str(sheet_obj.cell(row=i, column=related_column).value)
+        except ValueError:
+            found = False
+            logger_err.error("Error when casting code in (row: {}, col:{})".format(i, related_column))
+            break
         if str(related_code) == code:
             found = True
     return found
 
 
-queries_and_scales = get_queries_and_scales("./excel/scales.xlsx", 5, 2, 4, 5)
-print(queries_and_scales)
+# queries_and_scales = get_queries_and_scales("./excel/scales.xlsx", 5, 2, 4, 5)
