@@ -181,4 +181,4 @@ def extract_posts(excel_path: str, max_posts_per_query: int):
         '%.3f' % total_elapsed_time))
 
 
-extract_posts("./excel/one_query.xlsx", 10)
+# extract_posts("./excel/one_query.xlsx", 10)

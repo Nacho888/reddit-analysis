@@ -1,0 +1,37 @@
+[
+  {
+    "comments": [
+      "base",
+      "search top 10 subreddits where 'depression' appears the most",
+      "group posts by hours"
+    ]
+  },
+  {
+    "size": 0,
+    "query": {
+        "multi_match": {
+            "fields": ["selftext", "subreddit", "title"],
+            "query": "depression"
+        }
+    },
+    "aggs": {
+      "Top 10 subreddits": {
+        "terms": {
+          "field": "subreddit",
+          "size": 10
+        }
+      }
+    }
+  },
+  {
+    "size": 0,
+    "aggs": {
+      "Group by hours": {
+        "date_histogram" : {
+          "field" : "created_utc",
+          "interval" : "hour"
+        }
+      }
+    }
+  }
+]

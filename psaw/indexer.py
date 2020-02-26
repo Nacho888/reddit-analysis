@@ -1,6 +1,5 @@
 import uuid
 import logging
-import sys
 import os
 import elasticsearch
 #####
@@ -8,10 +7,9 @@ import logging_factory
 #####
 from typing import Optional
 from elasticsearch import Elasticsearch, helpers
-
 #####
-logger_err = logging_factory.get_module_logger("elastic_err", logging.ERROR)
-logger = logging_factory.get_module_logger("elastic", logging.DEBUG)
+logger_err = logging_factory.get_module_logger("indexer_err", logging.ERROR)
+logger = logging_factory.get_module_logger("indexer", logging.DEBUG)
 
 
 def setup_for_index(data: list, _index: str, _type: str, _id: Optional[int] = None):
@@ -61,10 +59,10 @@ def index_data(data: list, host: str, port: str, _index: str, _type: str):
             resp = helpers.bulk(es, setup_for_index(data, _index, _type, None), index=_index, doc_type=_type)
         except helpers.BulkIndexError:
             logger_err.error("helpers.bulk() - ERROR\n")
-            sys.exit(1)
+            pass
     except (elasticsearch.ConnectionTimeout, elasticsearch.ConnectionError):
         logger_err.error("ElasticSearch client problem (check if open)")
-        sys.exit(1)
+        pass
 
     return resp[0] if resp is not None else 0
 
@@ -82,8 +80,6 @@ def index_from_file(path: str, host: str, port: str, _index: str, _type: str, li
 
     """
 
-    # TODO: seems to be indexing one document less per file...
-
     lines = []
     ok_docs = 0
 
@@ -97,12 +93,14 @@ def index_from_file(path: str, host: str, port: str, _index: str, _type: str, li
                     lines = []
                 else:
                     lines.append(line)
+                logger.debug("{} documents indexed successfully\n".format(ok_docs))
             # There's remaining documents
             if len(lines) > 0:
                 ok_docs += index_data(lines, host, port, _index, _type)
                 lines = []
+                logger.debug("{} documents indexed successfully\n".format(ok_docs))
 
-    logger.debug("{} documents indexed successfully\n".format(ok_docs))
+
 
 
 # index_from_file("./backups", "localhost", "9200", "depression_index", "reddit_doc", 500)
