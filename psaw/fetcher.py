@@ -1,39 +1,16 @@
 import logging
 import time
+import epoch
 #####
 import excel_reader
 import file_manager
 import logging_factory
+import date_utils
 #####
 from psaw import PushshiftAPI
-from datetime import datetime
 #####
 logger_err = logging_factory.get_module_logger("fetcher_err", logging.ERROR)
 logger = logging_factory.get_module_logger("fetcher", logging.DEBUG)
-
-
-def get_timestamp():
-    """
-    Function that returns the current timestamp
-
-    :return: timestamp: int - current timestamp
-    """
-
-    # Time format for UTC
-    time_format = "%Y-%m-%d %H:%M:%S"
-
-    timestamp = datetime.utcfromtimestamp(int(time.time())).strftime(time_format)
-    # +0001 for Spain GMT
-    date = datetime.strptime(timestamp + "+0001", time_format + "%z")
-    timestamp = date.timestamp()
-
-    try:
-        result = int(timestamp)
-    except ValueError:
-        result = 0
-        logger_err.error('Date conversion incorrect for timestamp: {}'.format(timestamp))
-
-    return result
 
 
 def convert_response(post: dict):
@@ -120,7 +97,7 @@ def extract_posts(excel_path: str, max_posts_per_query: int):
             logger.debug("Trying to perform query: '{}'".format(query))
 
             # Timestamp for the filename
-            query_timestamp = get_timestamp()
+            query_timestamp = date_utils.get_current_timestamp("0100")
 
             # Measure elapsed time
             start = time.time()
@@ -144,7 +121,10 @@ def extract_posts(excel_path: str, max_posts_per_query: int):
                             "codes": related_codes,
                             "related_scales": related_scales
                         }}
-                        post["timestamp"] = get_timestamp()
+                        # Change date formats to ISO-8601 strings
+                        post["created_utc"] = date_utils.get_iso_date_str(post["created_utc"], "0000")
+                        post["retrieved_on"] = date_utils.get_iso_date_str(post["retrieved_on"], "0000")
+                        post["timestamp"] = date_utils.get_iso_date_str(query_timestamp, "0100")
 
                         #####
 
@@ -181,4 +161,4 @@ def extract_posts(excel_path: str, max_posts_per_query: int):
         '%.3f' % total_elapsed_time))
 
 
-# extract_posts("./excel/one_query.xlsx", 10)
+extract_posts("./excel/one_query.xlsx", 10)

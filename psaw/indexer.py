@@ -93,14 +93,11 @@ def index_from_file(path: str, host: str, port: str, _index: str, _type: str, li
                     lines = []
                 else:
                     lines.append(line)
-                logger.debug("{} documents indexed successfully\n".format(ok_docs))
             # There's remaining documents
             if len(lines) > 0:
                 ok_docs += index_data(lines, host, port, _index, _type)
                 lines = []
-                logger.debug("{} documents indexed successfully\n".format(ok_docs))
+        logger.debug("{} documents indexed successfully\n".format(ok_docs))
 
 
-
-
-# index_from_file("./backups", "localhost", "9200", "depression_index", "reddit_doc", 500)
+index_from_file("./test", "localhost", "9200", "depression_index", "reddit_doc", 500)
