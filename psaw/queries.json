@@ -3,7 +3,8 @@
     "descriptions": [
       "base",
       "search top 10 subreddits where 'depression' appears the most",
-      "group posts by hours"
+      "group posts by years",
+      "top 10 authors"
     ]
   },
   {
@@ -26,10 +27,21 @@
   {
     "size": 0,
     "aggs": {
-      "Group by hours": {
+      "Group by years": {
         "date_histogram" : {
           "field" : "created_utc",
-          "interval" : "hour"
+          "interval" : "year"
+        }
+      }
+    }
+  },
+  {
+    "size": 0,
+    "aggs": {
+      "Top 10 authors": {
+        "terms": {
+          "field": "author",
+          "size": 10
         }
       }
     }

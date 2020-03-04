@@ -1,6 +1,7 @@
 import logging
 import time
-import epoch
+import os
+import json
 #####
 import excel_reader
 import file_manager
@@ -25,7 +26,7 @@ def convert_response(post: dict):
     try:
         p_id = post.d_[id]
     except KeyError:
-        p_id = "no_post_id_found"
+        p_id = "no_id"
         pass
 
     try:
@@ -45,7 +46,7 @@ def convert_response(post: dict):
     return updated_post
 
 
-def extract_posts(excel_path: str, max_posts_per_query: int):
+def extract_posts_from_scales(excel_path: str, max_posts_per_query: int):
     """
     Main function that given an excel spreadsheet with the required format (could be changed in the module
     excel_reader.py) performs the queries for each scale and extract posts storing them in .jsonl format as backup
@@ -115,8 +116,9 @@ def extract_posts(excel_path: str, max_posts_per_query: int):
                 for resp_post in response:
                     post = convert_response(resp_post)
 
-                    if post is not {}:
-                        # Extra fields: current timestamp and query data
+                    if bool(post):
+                        # Extra fields (only if post is not empty): current timestamp and query data (thematic
+                        # set to True)
                         post["parameters"] = {"query": query, "scale": scale, "thematic": thematic, "related": {
                             "codes": related_codes,
                             "related_scales": related_scales
@@ -129,7 +131,7 @@ def extract_posts(excel_path: str, max_posts_per_query: int):
                         #####
 
                         # File backup
-                        saved = file_manager.write_post_to_backup(post, query, scale, query_timestamp)
+                        saved = file_manager.write_scale_post_to_backup(post, query, scale, query_timestamp)
                         if saved:
                             ok_docs += 1
             else:
@@ -161,4 +163,113 @@ def extract_posts(excel_path: str, max_posts_per_query: int):
         '%.3f' % total_elapsed_time))
 
 
-extract_posts("./excel/one_query.xlsx", 10)
+def extract_posts(start_date: str, end_date: str, size: int, timestamp: str):
+    """
+    Function that extracts N (size) posts in a given time interval
+
+    :param start_date: str - the date to search from
+    :param end_date: str - the date to search to
+    :param size: int - maximum number of posts to be retrieved
+    :param timestamp: str - timestamp for the filename
+
+    """
+    # Parameters
+    thematic = False
+
+    # API
+    api = PushshiftAPI()
+
+    #####
+
+    # Count of correct docs saved
+    ok_docs = 0
+
+    logger.debug("Trying to obtain posts from {} to {}".format(start_date, end_date))
+
+    # Measure elapsed time
+    start = time.time()
+
+    response = api.search_submissions(query="", sort_type="created_utc", sort="desc", before=start_date, after=end_date,
+                                      limit=size)
+
+    for resp_post in response:
+        post = convert_response(resp_post)
+
+        if bool(post):
+            # Extra fields (only if post is not empty): no query and 'random_baseline' for the scale (thematic
+            # set to False)
+            post["parameters"] = {"query": "", "scale": "random_baseline", "thematic": thematic}
+
+            # Change date formats to ISO 8601
+            post["created_utc"] = date_utils.get_iso_date_str(post["created_utc"], "0000")
+            post["retrieved_on"] = date_utils.get_iso_date_str(post["retrieved_on"], "0000")
+
+            # File backup
+            saved = file_manager.write_to_file(post, ".\\backups\\", "reference_collection_{}.jsonl".format(timestamp))
+            if saved:
+                ok_docs += 1
+
+    end = time.time()
+    elapsed_time = end - start
+
+    # Print stats
+    logger.debug("{} documents successfully saved (expected {})".format(ok_docs, size))
+    logger.debug("Elapsed time: {}\n".format(elapsed_time))
+
+
+def obtain_reference_collection(path: str, max_block_size: int, before: int):
+    """
+    Function that given the path of the backups' folder and the size of the posts' intervals creates a reference
+    collection of random posts
+
+    # 1 January 2020 0:00:00 -> 1577836800
+
+    :param path: str - the path to the backups' folder
+    :param max_block_size: int - number of posts per interval
+    :param before: int - date to start searching
+
+    """
+
+    # To put the timestamp in the filename
+    timestamp = date_utils.get_current_timestamp("0100")
+
+    # Actual count of posts
+    current_block_size = 0
+
+    # To store the time intervals
+    start_date = None
+    last_post = None
+
+    for subdir, dirs, files in os.walk(path):
+        for file in files:
+            for line in open(os.path.join(subdir, file)):
+                temp = json.loads(line)
+                last_post = temp
+
+                if start_date is None:
+                    # Set initial date
+                    start_date = date_utils.get_numeric_timestamp_from_iso(temp["created_utc"])
+                    if start_date > before:
+                        start_date = None
+
+                current_block_size += 1
+
+                if current_block_size == max_block_size:
+                    temp = json.loads(line)
+                    end_date = date_utils.get_numeric_timestamp_from_iso(temp["created_utc"])
+
+                    # Write interval of random posts to file
+                    extract_posts(start_date, end_date, max_block_size, timestamp)
+
+                    # Reset
+                    current_block_size = 0
+                    start_date = end_date
+
+    if current_block_size > 0:
+        # Write remaining
+        extract_posts(start_date, date_utils.get_numeric_timestamp_from_iso(last_post["created_utc"]), max_block_size,
+                      timestamp)
+
+
+# extract_posts_from_scales(".\\excel\\one_query.xlsx", 1000)
+obtain_reference_collection(".\\backups", 1000, 1583280000)

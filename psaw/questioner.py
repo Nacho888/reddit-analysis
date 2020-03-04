@@ -35,7 +35,7 @@ def perform_search(index: str, host: str, port: str, body: dict, description: st
         logger_err.error("ElasticSearch client problem (check if open)")
         pass
 
-    return response if response is not {} else {}
+    return response if bool(response) else {}
 
 
 def extract_queries(path: str, filename: str):
@@ -52,7 +52,7 @@ def extract_queries(path: str, filename: str):
         for i, query in enumerate(data):
             if i != 0:
                 response = perform_search("depression_index", "localhost", "9200", query, data[0]["descriptions"][i])
-                if response is not {}:
+                if bool(response):
                     print(response)
                 else:
                     logger_err.error("No results found for query {} - {}".format(i, data[0]["descriptions"][i]))

@@ -46,6 +46,8 @@ def index_data(data: list, host: str, port: str, _index: str, _type: str):
 
     """
 
+    resp = None
+
     try:
         es = Elasticsearch([{"host": host, "port": port}])
         # logger.debug("Connection established")
@@ -91,13 +93,17 @@ def index_from_file(path: str, host: str, port: str, _index: str, _type: str, li
                 if len(lines) == limit:
                     ok_docs += index_data(lines, host, port, _index, _type)
                     lines = []
+                    print("{} documents indexed successfully\n".format(ok_docs))
                 else:
                     lines.append(line)
             # There's remaining documents
             if len(lines) > 0:
                 ok_docs += index_data(lines, host, port, _index, _type)
                 lines = []
-        logger.debug("{} documents indexed successfully\n".format(ok_docs))
+                print("{} documents indexed successfully\n".format(ok_docs))
+
+            logger.debug("{} documents indexed successfully\n".format(ok_docs))
 
 
-index_from_file("./test", "localhost", "9200", "depression_index", "reddit_doc", 500)
+index_from_file("D:\\OneDrive - Universidad de Oviedo\\tfg\\backups\\jsonl\\backups1000\\200220_iso",
+                "localhost", "9200", "depression_index", "reddit_doc", 1000)
