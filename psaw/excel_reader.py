@@ -2,7 +2,6 @@ import openpyxl
 import logging
 #####
 import logging_factory
-
 #####
 logger = logging_factory.get_module_logger("excel_reader", logging.DEBUG)
 logger_err = logging_factory.get_module_logger("excel_reader_err", logging.ERROR)

@@ -1,6 +1,6 @@
 import logging
-import time
 import os
+import time
 import json
 #####
 import excel_reader
@@ -171,6 +171,7 @@ def extract_posts(start_date: str, end_date: str, size: int, timestamp: str):
     :param end_date: str - the date to search to
     :param size: int - maximum number of posts to be retrieved
     :param timestamp: str - timestamp for the filename
+    :return list - elapsed time performing the query and number of successfully saved documents
 
     """
     # Parameters
@@ -183,8 +184,6 @@ def extract_posts(start_date: str, end_date: str, size: int, timestamp: str):
 
     # Count of correct docs saved
     ok_docs = 0
-
-    logger.debug("Trying to obtain posts from {} to {}".format(start_date, end_date))
 
     # Measure elapsed time
     start = time.time()
@@ -212,21 +211,21 @@ def extract_posts(start_date: str, end_date: str, size: int, timestamp: str):
     end = time.time()
     elapsed_time = end - start
 
-    # Print stats
-    logger.debug("{} documents successfully saved (expected {})".format(ok_docs, size))
-    logger.debug("Elapsed time: {}\n".format(elapsed_time))
+    return [elapsed_time, ok_docs]
 
 
-def obtain_reference_collection(path: str, max_block_size: int, before: int):
+def obtain_reference_collection(path: str, max_block_size: int, posts_per_block: int, base_date: int):
     """
     Function that given the path of the backups' folder and the size of the posts' intervals creates a reference
     collection of random posts
 
-    # 1 January 2020 0:00:00 (GMT 0) -> 1577836800
+    # 1 January 2020 00:00:00 (GMT +00:00) -> 1577836800
+    # 4 March 2020 00:00:00 (GMT +00:00) -> 1583280000
 
     :param path: str - the path to the backups' folder
-    :param max_block_size: int - number of posts per interval
-    :param before: int - date to start searching
+    :param max_block_size: int - number of posts per date interval
+    :param posts_per_block: int - number of posts to obtain per interval
+    :param base_date: int - date to start searching
 
     """
 
@@ -236,55 +235,81 @@ def obtain_reference_collection(path: str, max_block_size: int, before: int):
     # Actual count of posts
     current_block_size = 0
 
+    # Skipped posts because of newer date
+    skipped = 0
+
     # To store the time intervals
     start_date = None
+    end_date = None
     last_post = None
 
-    for subdir, dirs, files in os.walk(path):
+    # Stats
+    total_time = 0
+    ok_docs = 0
+    initial_date = None
+
+    for root, subdirs, files in os.walk(path):
         for file in files:
-            with open(os.path.join(subdir, file)) as readfile:
+            with open(os.path.join(root, file), "r") as readfile:
                 for line in readfile:
                     temp = json.loads(line)
                     last_post = temp
 
-                    if start_date is None:
+                    if start_date is None:  # First time
                         # Set initial date
                         start_date = date_utils.get_numeric_timestamp_from_iso(temp["created_utc"])
-                        if start_date > before:
+                        if start_date > base_date:  # Skip posts newer than date passed as parameter
                             start_date = None
+                            skipped += 1
+                        else:
+                            initial_date = temp["created_utc"]
 
-                    current_block_size += 1
+                    else:
+                        current_block_size += 1
 
-                    if current_block_size == max_block_size:
-                        temp = json.loads(line)
-                        end_date = date_utils.get_numeric_timestamp_from_iso(temp["created_utc"])
+                        if current_block_size == max_block_size:
+                            temp = json.loads(line)
+                            end_date = date_utils.get_numeric_timestamp_from_iso(temp["created_utc"])
 
-                        # Write interval of random posts to file
-                        extract_posts(start_date, end_date, max_block_size, timestamp)
+                            # Write interval of random posts to file
+                            resp = extract_posts(start_date, end_date, posts_per_block, timestamp)
+                            total_time += resp[0]
+                            ok_docs += resp[1]
 
-                        # Reset
-                        current_block_size = 0
-                        start_date = end_date
+                            # Reset
+                            current_block_size = 0
+                            start_date = end_date
 
     if current_block_size > 0:
         # Write remaining
-        extract_posts(start_date, date_utils.get_numeric_timestamp_from_iso(last_post["created_utc"]), max_block_size,
-                      timestamp)
+        if start_date < base_date:
+            end_date = date_utils.get_numeric_timestamp_from_iso(last_post["created_utc"])
+            extract_posts(start_date, end_date, posts_per_block,
+                          timestamp)
+
+    logger.debug("Generated documents between {} and {} with {} documents per interval (size {})".format(
+        initial_date,
+        end_date,
+        posts_per_block,
+        max_block_size))
+    logger.debug("Total elapsed time generating the collection: {} seconds".format(total_time))
+    logger.debug("{} documents where skipped because newer than {} and {} documents where generated".format(
+        skipped,
+        date_utils.get_iso_date_str(base_date),
+        ok_docs))
 
 
-def obtain_first_post_before_date(path: str, filename: str, timestamp: int):
-    try:
-        print(os.path.join(path, filename))
-        with open(os.path.join(path, filename)) as readfile:
-            for line in readfile:
-                temp = json.loads(line)
-                if date_utils.get_numeric_timestamp_from_iso(temp["created_utc"]) <= timestamp:
-                    print("ID: {} - DATE: {}".format(temp["id"], temp["created_utc"]))
-                    break
-    except FileNotFoundError:
-        print("File not found")
+def obtain_first_post_before_date(path: str, timestamp: int):
+    for root, subdirs, files in os.walk(path):
+        for file in files:
+            with open(os.path.join(root, file), "r") as readfile:
+                for line in readfile:
+                    temp = json.loads(line)
+                    if date_utils.get_numeric_timestamp_from_iso(temp["created_utc"]) <= timestamp:
+                        print("ID: {} - DATE: {}".format(temp["id"], temp["created_utc"]))
+                        break
 
 
 # extract_posts_from_scales("./excel/one_query.xlsx", 1000)
-# obtain_reference_collection("./backups/", 1000, 1583280000)
-obtain_first_post_before_date("backups/BDI/", "future-is-hopeless_1582667953.jsonl", 1577836800)
+obtain_reference_collection("./backups/", 100, 1000, 1577836800)
+# obtain_first_post_before_date("./backups/", 1583280000)

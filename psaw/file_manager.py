@@ -49,9 +49,19 @@ def write_scale_post_to_backup(data: dict, query: str, scale: str, timestamp: in
 
 
 def write_to_file(data: dict, save_path: str, filename: str):
+    """
+    Function that writes data to a .jsonl file in the required format and returns true if successful and
+    False if errored
+
+    :param data: dict - the data to be saved as .jsonl format
+    :param save_path: str - the path to the file
+    :param filename: str - the name of the file
+    :return: True/False - true if backup successfully, false otherwise
+
+    """
     # Write .jsonl file backup
     try:
-        with open(os.path.join(save_path, filename), 'a+') as outfile:
+        with open(os.path.join(save_path, filename), 'a') as outfile:
             json.dump(data, outfile)
             outfile.write('\n')
             return True
@@ -88,18 +98,18 @@ def check_json(path, change_name):
     first execution where you should set it to False), False otherwise
 
     """
-    for subdir, dirs, files in os.walk(path):
+    for root, subdirs, files in os.walk(path):
         for file in files:
             if change_name:
                 if "upd" not in file:
-                    os.remove(os.path.join(subdir, file))
+                    os.remove(os.path.join(root, file))
                 else:
                     new_filename_arr = file.split("_")
                     new_filename = str(new_filename_arr[0]) + "_" + str(new_filename_arr[1]) + ".jsonl"
-                    os.rename(os.path.join(subdir, file), os.path.join(subdir, new_filename))
+                    os.rename(os.path.join(root, file), os.path.join(root, new_filename))
             else:
                 if "upd" not in file:
-                    with open(os.path.join(subdir, file), 'r+') as original_file:
+                    with open(os.path.join(root, file), 'r+') as original_file:
                         for i, line in enumerate(original_file):
                             # print("\ni: {} - line: {}".format(i, line.strip("\n")))
                             if line.startswith('{"id":'):  # Skip bad formatted lines
@@ -114,9 +124,9 @@ def check_json(path, change_name):
 
                                 file_name_arr = file.split(".")
                                 file_name = str(file_name_arr[0]) + "_upd." + str(file_name_arr[1])
-                                with open(os.path.join(subdir, file_name), "a+") as second_file:
+                                with open(os.path.join(root, file_name), "a") as second_file:
                                     json.dump(temp, second_file)
                                     second_file.write('\n')
 
 
-check_json("./backups/", True)
+# check_json("./backups/", True)

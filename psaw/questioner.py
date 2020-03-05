@@ -47,7 +47,7 @@ def extract_queries(path: str, filename: str):
     :param filename: str - the name of the file
 
     """
-    with open(os.path.join(path, filename), 'r') as file:
+    with open(os.path.join(path, filename), "r") as file:
         data = json.load(file)
         for i, query in enumerate(data):
             if i != 0:

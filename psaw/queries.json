@@ -2,7 +2,7 @@
   {
     "descriptions": [
       "base",
-      "search top 10 subreddits where 'depression' appears the most",
+      "search top 10 subreddits where 'depression' appears the most (subreddit title, post title and selftext)",
       "group posts by years",
       "top 10 authors"
     ]

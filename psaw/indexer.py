@@ -87,9 +87,10 @@ def index_from_file(path: str, host: str, port: str, _index: str, _type: str, li
 
     logger.debug("Parameters to establish connection with ElasticSearch -> (host: '{}', port: '{}')".format(host, port))
 
-    for subdir, dirs, files in os.walk(path):
+    print(path)
+    for root, subdirs, files in os.walk(path):
         for file in files:
-            with open(os.path.join(subdir, file)) as readfile:
+            with open(os.path.join(root, file), "r") as readfile:
                 for line in readfile:
                     if len(lines) == limit:
                         ok_docs += index_data(lines, host, port, _index, _type)
@@ -106,5 +107,5 @@ def index_from_file(path: str, host: str, port: str, _index: str, _type: str, li
                 logger.debug("{} documents indexed successfully\n".format(ok_docs))
 
 
-index_from_file("D:/OneDrive - Universidad de Oviedo/tfg/backups/jsonl/backups1000/200220_iso",
+index_from_file("./backups/",
                 "localhost", "9200", "depression_index", "reddit_doc", 1000)
