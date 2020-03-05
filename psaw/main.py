@@ -54,9 +54,9 @@ def main(argv):
                 fetcher.extract_posts_from_scales(argv[1], argv[2])
             elif option == "1":
                 fetcher.extract_posts_from_scales(argv[1], argv[2])
-                indexer.index_from_file(".\\backups", argv[3], argv[4], argv[5], argv[6], argv[7])
+                indexer.index_from_file("./backups", argv[3], argv[4], argv[5], argv[6], argv[7])
             elif option == "2":
-                indexer.index_from_file(".\\backups", argv[3], argv[4], argv[5], argv[6], argv[7])
+                indexer.index_from_file("./backups", argv[3], argv[4], argv[5], argv[6], argv[7])
             else:
                 logger_err.error("Invalid option format (should be: [0-2](r)?)")
                 sys.exit(1)

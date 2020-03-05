@@ -205,7 +205,7 @@ def extract_posts(start_date: str, end_date: str, size: int, timestamp: str):
             post["retrieved_on"] = date_utils.get_iso_date_str(post["retrieved_on"], "0000")
 
             # File backup
-            saved = file_manager.write_to_file(post, ".\\backups\\", "reference_collection_{}.jsonl".format(timestamp))
+            saved = file_manager.write_to_file(post, "./backups/", "reference_collection_{}.jsonl".format(timestamp))
             if saved:
                 ok_docs += 1
 
@@ -222,7 +222,7 @@ def obtain_reference_collection(path: str, max_block_size: int, before: int):
     Function that given the path of the backups' folder and the size of the posts' intervals creates a reference
     collection of random posts
 
-    # 1 January 2020 0:00:00 -> 1577836800
+    # 1 January 2020 0:00:00 (GMT 0) -> 1577836800
 
     :param path: str - the path to the backups' folder
     :param max_block_size: int - number of posts per interval
@@ -242,28 +242,29 @@ def obtain_reference_collection(path: str, max_block_size: int, before: int):
 
     for subdir, dirs, files in os.walk(path):
         for file in files:
-            for line in open(os.path.join(subdir, file)):
-                temp = json.loads(line)
-                last_post = temp
-
-                if start_date is None:
-                    # Set initial date
-                    start_date = date_utils.get_numeric_timestamp_from_iso(temp["created_utc"])
-                    if start_date > before:
-                        start_date = None
-
-                current_block_size += 1
-
-                if current_block_size == max_block_size:
+            with open(os.path.join(subdir, file)) as readfile:
+                for line in readfile:
                     temp = json.loads(line)
-                    end_date = date_utils.get_numeric_timestamp_from_iso(temp["created_utc"])
+                    last_post = temp
 
-                    # Write interval of random posts to file
-                    extract_posts(start_date, end_date, max_block_size, timestamp)
+                    if start_date is None:
+                        # Set initial date
+                        start_date = date_utils.get_numeric_timestamp_from_iso(temp["created_utc"])
+                        if start_date > before:
+                            start_date = None
 
-                    # Reset
-                    current_block_size = 0
-                    start_date = end_date
+                    current_block_size += 1
+
+                    if current_block_size == max_block_size:
+                        temp = json.loads(line)
+                        end_date = date_utils.get_numeric_timestamp_from_iso(temp["created_utc"])
+
+                        # Write interval of random posts to file
+                        extract_posts(start_date, end_date, max_block_size, timestamp)
+
+                        # Reset
+                        current_block_size = 0
+                        start_date = end_date
 
     if current_block_size > 0:
         # Write remaining
@@ -271,5 +272,19 @@ def obtain_reference_collection(path: str, max_block_size: int, before: int):
                       timestamp)
 
 
-# extract_posts_from_scales(".\\excel\\one_query.xlsx", 1000)
-obtain_reference_collection(".\\backups", 1000, 1583280000)
+def obtain_first_post_before_date(path: str, filename: str, timestamp: int):
+    try:
+        print(os.path.join(path, filename))
+        with open(os.path.join(path, filename)) as readfile:
+            for line in readfile:
+                temp = json.loads(line)
+                if date_utils.get_numeric_timestamp_from_iso(temp["created_utc"]) <= timestamp:
+                    print("ID: {} - DATE: {}".format(temp["id"], temp["created_utc"]))
+                    break
+    except FileNotFoundError:
+        print("File not found")
+
+
+# extract_posts_from_scales("./excel/one_query.xlsx", 1000)
+# obtain_reference_collection("./backups/", 1000, 1583280000)
+obtain_first_post_before_date("backups/BDI/", "future-is-hopeless_1582667953.jsonl", 1577836800)

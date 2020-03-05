@@ -26,7 +26,7 @@ def write_scale_post_to_backup(data: dict, query: str, scale: str, timestamp: in
     filename, directory = "", ""
 
     try:
-        save_path = ".\\backups\\"
+        save_path = "./backups/"
         # Create, if not present, folder to store posts' backups
         if not os.path.isdir(save_path):
             os.mkdir(save_path)
@@ -36,7 +36,7 @@ def write_scale_post_to_backup(data: dict, query: str, scale: str, timestamp: in
         filename = "{}_{}.jsonl".format(query_name_file, timestamp)
 
         # One directory per scale
-        directory = save_path + scale.strip() + "\\"
+        directory = save_path + scale.strip() + "/"
         if not os.path.isdir(directory):
             os.mkdir(directory)
     except FileExistsError:
@@ -68,7 +68,7 @@ def del_backups():
     Function that deletes the default backups folder containing all the .jsonl files
 
     """
-    path = ".\\backups"
+    path = "./backups/"
     if os.path.isdir(path):
         try:
             shutil.rmtree(path)
@@ -119,4 +119,4 @@ def check_json(path, change_name):
                                     second_file.write('\n')
 
 
-check_json(".\\backups", True)
+check_json("./backups/", True)

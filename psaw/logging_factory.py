@@ -25,7 +25,7 @@ def get_module_logger(mod_name: str, level: int):
 
     # ERROR messages: file - YES, console - NO
     if level is logging.ERROR:
-        fh = logging.FileHandler(".\\logs\\errors.log")
+        fh = logging.FileHandler("./logs/errors.log")
         fh.setLevel(logging.ERROR)
         file_formatter = logging.Formatter(
             "%(asctime)s - %(levelname)-4s [%(filename)s:%(lineno)d] %(message)s")
@@ -40,7 +40,7 @@ def get_module_logger(mod_name: str, level: int):
         ch.setFormatter(console_formatter)
         logger.addHandler(ch)
 
-        fh = logging.FileHandler(".\\logs\\debug.log")
+        fh = logging.FileHandler("./logs/debug.log")
         fh.setLevel(logging.DEBUG)
         file_formatter = logging.Formatter(
             "%(asctime)s - %(levelname)-4s [%(filename)s:%(lineno)d] %(message)s")
@@ -51,7 +51,7 @@ def get_module_logger(mod_name: str, level: int):
 
 
 def check_structure():
-    logs_path = ".\\logs\\"
+    logs_path = "./logs/"
     # Create, if not present, folder to store program's logs (and logs)
     try:
         if not os.path.isdir(logs_path):
