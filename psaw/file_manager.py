@@ -75,16 +75,28 @@ def write_to_file(data: dict, save_path: str, filename: str):
 
 def del_backups():
     """
-    Function that deletes the default backups folder containing all the .jsonl files
+    Function that deletes the default backups' folders containing all the .jsonl files for each scale (but leaves other
+    file in the root of the ./backups directory)
 
     """
     path = "./backups/"
-    if os.path.isdir(path):
-        try:
-            shutil.rmtree(path)
-            logger.debug("Backups deleted successfully")
-        except FileNotFoundError:
-            logger_err.error("Error when deleting backups' folder")
+
+    for root, subdirs, files in os.walk(path):
+        for subdir in subdirs:
+            if os.path.isdir(os.path.join(root, subdir)):
+                try:
+                    shutil.rmtree(os.path.join(root, subdir))
+                    logger.debug("{} deleted successfully".format(os.path.join(root, subdir)))
+                except FileNotFoundError:
+                    logger_err.error("Error when deleting backups' folder")
+
+
+def join_backup_files(path: str):
+    for root, subdirs, files in os.walk(path):
+        for file in files:
+            with open(os.path.join(root, file), "r") as input_file:
+                for line in input_file:
+                    write_to_file(json.loads(line), path, "all_queries.jsonl")
 
 
 def check_json(path, change_name):
@@ -115,12 +127,18 @@ def check_json(path, change_name):
                             if line.startswith('{"id":'):  # Skip bad formatted lines
                                 temp = json.loads(line)
 
-                                temp["created_utc"] = date_utils.get_iso_date_str(temp["created_utc"], "0000")
-                                temp["retrieved_on"] = date_utils.get_iso_date_str(temp["retrieved_on"], "0000")
+                                if isinstance(temp["created_utc"], int):
+                                    temp["created_utc"] = date_utils.get_iso_date_str(temp["created_utc"])
+                                if isinstance(temp["retrieved_on"], int):
+                                    temp["retrieved_on"] = date_utils.get_iso_date_str(temp["retrieved_on"])
 
-                                temp["timestamp"] = date_utils.get_iso_date_str(temp["timestamp"], "0100")
-                                # print(date_utils.get_numeric_timestamp_from_iso(temp["timestamp"]))
-                                # print("i: {} - updated_line: {}".format(i, temp))
+                                if isinstance(temp["timestamp"], int):
+                                    temp["timestamp"] = date_utils.get_iso_date_str(temp["timestamp"], "0100")
+                                    # print(date_utils.get_numeric_timestamp_from_iso(temp["timestamp"]))
+                                    # print("i: {} - updated_line: {}".format(i, temp))
+
+                                temp["post_hour"] = date_utils.extract_hour_from_timestamp(temp["created_utc"])
+                                print(temp["post_hour"])
 
                                 file_name_arr = file.split(".")
                                 file_name = str(file_name_arr[0]) + "_upd." + str(file_name_arr[1])
@@ -130,3 +148,5 @@ def check_json(path, change_name):
 
 
 # check_json("./backups/", True)
+# join_backup_files("./backups")
+del_backups()

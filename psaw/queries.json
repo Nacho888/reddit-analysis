@@ -4,16 +4,21 @@
       "base",
       "search top 10 subreddits where 'depression' appears the most (subreddit title, post title and selftext)",
       "group posts by years",
+      "posts per hour",
       "top 10 authors"
     ]
   },
   {
     "size": 0,
     "query": {
-        "multi_match": {
-            "fields": ["selftext", "subreddit", "title"],
-            "query": "depression"
-        }
+      "multi_match": {
+        "fields": [
+          "selftext",
+          "subreddit",
+          "title"
+        ],
+        "query": "depression"
+      }
     },
     "aggs": {
       "Top 10 subreddits": {
@@ -28,9 +33,28 @@
     "size": 0,
     "aggs": {
       "Group by years": {
-        "date_histogram" : {
-          "field" : "created_utc",
-          "interval" : "year"
+        "date_histogram": {
+          "field": "created_utc",
+          "interval": "year"
+        }
+      }
+    }
+  },
+  {
+    "size": 0,
+    "aggs": {
+      "Posts per hour": {
+        "composite": {
+          "size": 24,
+          "sources": [
+            {
+              "Hour": {
+                "terms": {
+                  "field": "post_hour"
+                }
+              }
+            }
+          ]
         }
       }
     }

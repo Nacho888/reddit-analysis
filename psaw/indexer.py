@@ -87,7 +87,6 @@ def index_from_file(path: str, host: str, port: str, _index: str, _type: str, li
 
     logger.debug("Parameters to establish connection with ElasticSearch -> (host: '{}', port: '{}')".format(host, port))
 
-    print(path)
     for root, subdirs, files in os.walk(path):
         for file in files:
             with open(os.path.join(root, file), "r") as readfile:
@@ -95,17 +94,14 @@ def index_from_file(path: str, host: str, port: str, _index: str, _type: str, li
                     if len(lines) == limit:
                         ok_docs += index_data(lines, host, port, _index, _type)
                         lines = []
-                        print("{} documents indexed successfully\n".format(ok_docs))
                     else:
                         lines.append(line)
                 # There's remaining documents
                 if len(lines) > 0:
                     ok_docs += index_data(lines, host, port, _index, _type)
                     lines = []
-                    print("{} documents indexed successfully\n".format(ok_docs))
 
-                logger.debug("{} documents indexed successfully\n".format(ok_docs))
+        logger.debug("{} documents indexed successfully".format(ok_docs))
 
 
-index_from_file("./backups/",
-                "localhost", "9200", "depression_index", "reddit_doc", 1000)
+index_from_file("./backups/", "localhost", "9200", "depression_index", "reddit_doc", 1000)

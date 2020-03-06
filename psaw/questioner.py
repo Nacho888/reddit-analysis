@@ -6,6 +6,7 @@ import logging_factory
 import logging
 #####
 from elasticsearch import Elasticsearch
+
 #####
 logger_err = logging_factory.get_module_logger("questioner_err", logging.ERROR)
 logger = logging_factory.get_module_logger("questioner", logging.DEBUG)
@@ -58,4 +59,31 @@ def extract_queries(path: str, filename: str):
                     logger_err.error("No results found for query {} - {}".format(i, data[0]["descriptions"][i]))
 
 
-extract_queries(".", "queries.json")
+def obtain_posts_per_hour_interval():
+    for i in range(24):
+        to = i + 1 if i < 23 else 0
+
+        body = {"size": 0,
+                "aggs": {"Hour ranges": {"range": {"field": "post_hour", "ranges": [{"from": i, "to": to}]}}}}
+
+        response = perform_search("depression_index", "localhost", "9200", body,
+                                  "Posts from {} hours to {} hours".format(i, to))
+        print(response)
+
+
+def obtain_posts_per_hour():
+    name = "Posts per hour"
+    key_name = "Hour"
+    body = {"size": 0, "aggs": {
+        name: {"composite": {"size": 24, "sources": [{key_name: {"terms": {"field": "post_hour"}}}]}}}}
+
+    response = perform_search("depression_index", "localhost", "9200", body, "Posts per hour")
+    resp_dict = {}
+    for key in response["aggregations"][name]["buckets"]:
+        resp_dict[key["key"][key_name]] = key["doc_count"]
+
+    print(resp_dict)
+
+
+obtain_posts_per_hour()
+# extract_queries(".", "queries.json")

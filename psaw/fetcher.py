@@ -311,5 +311,5 @@ def obtain_first_post_before_date(path: str, timestamp: int):
 
 
 # extract_posts_from_scales("./excel/one_query.xlsx", 1000)
-obtain_reference_collection("./backups/", 100, 1000, 1577836800)
+# obtain_reference_collection("./backups/", 100, 1000, 1577836800)
 # obtain_first_post_before_date("./backups/", 1583280000)
