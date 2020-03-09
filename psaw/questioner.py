@@ -4,6 +4,7 @@ import os
 import logging
 #####
 import date_utils
+import fetcher
 import file_manager
 import logging_factory
 #####
@@ -60,12 +61,22 @@ def extract_queries(path: str, filename: str):
                     logger_err.error("No results found for query {} - {}".format(i, data[0]["descriptions"][i]))
 
 
-def extract_posts_ordered_by_timestamp():
+def extract_posts_ordered_by_timestamp(generate_file: bool, max_block_size: int, posts_per_block: int, base_date: int):
     """
+    # TODO
+
     Function that writes to a file all the posts in ElasticSearch (sorted by descending date)
 
+    :param generate_file: bool - True if you want to merge all docs in a single document ordered by date, False if you
+    just want to generate the reference collection
+    :param max_block_size:
+    :param posts_per_block:
+    :param base_date:
+
     """
-    timestamp = date_utils.get_current_timestamp("0000")
+    # To put the timestamp in the filename
+    timestamp = date_utils.get_current_timestamp("0100")
+
     body = {"query": {"match_all": {}}, "sort": [{"created_utc": {"order": "desc"}}]}
     try:
         es = Elasticsearch([{"host": "localhost", "port": "9200"}])
@@ -73,8 +84,12 @@ def extract_posts_ordered_by_timestamp():
             # Use scan to return a generator
             # preserve_order = True -> may impact performance but we need to preserve the date order of the query
             response = helpers.scan(es, query=body, preserve_order=True, index="depression_index")
-            for post in response:
-                file_manager.write_to_file(post["_source"], "./backups", "all_queries_{}.jsonl".format(timestamp))
+            if bool(response):
+                if generate_file:
+                    for post in response:
+                        file_manager.write_to_file(post["_source"], "./backups",
+                                                   "all_queries_{}.jsonl".format(timestamp))
+                fetcher.obtain_reference_collection("", max_block_size, posts_per_block, base_date, response)
         except (elasticsearch.NotFoundError, elasticsearch.RequestError):
             logger_err.error("Error when performing the query against ElasticSearch - {}".format("Posts ordered"
                                                                                                  "by timestamp"))
@@ -119,4 +134,4 @@ def obtain_posts_per_hour():
 
 # obtain_posts_per_hour()
 # extract_queries(".", "queries.json")
-extract_posts_ordered_by_timestamp()
+extract_posts_ordered_by_timestamp(False, 1000, 1000, 1577836800)

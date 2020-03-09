@@ -3,6 +3,8 @@ import os
 import time
 import json
 #####
+from typing import Optional, Iterable
+
 import excel_reader
 import file_manager
 import logging_factory
@@ -163,14 +165,14 @@ def extract_posts_from_scales(excel_path: str, max_posts_per_query: int):
         '%.3f' % total_elapsed_time))
 
 
-def extract_posts(start_date: str, end_date: str, size: int, timestamp: str):
+def extract_posts(start_date: str, end_date: str, size: int, timestamp: int):
     """
     Function that extracts N (size) posts in a given time interval
 
     :param start_date: str - the date to search from
     :param end_date: str - the date to search to
     :param size: int - maximum number of posts to be retrieved
-    :param timestamp: str - timestamp for the filename
+    :param timestamp: int - timestamp for the filename
     :return list - elapsed time performing the query and number of successfully saved documents
 
     """
@@ -214,7 +216,8 @@ def extract_posts(start_date: str, end_date: str, size: int, timestamp: str):
     return [elapsed_time, ok_docs]
 
 
-def obtain_reference_collection(path: str, max_block_size: int, posts_per_block: int, base_date: int):
+def obtain_reference_collection(path: str, max_block_size: int, posts_per_block: int, base_date: int,
+                                posts: Optional[Iterable] = None):
     """
     Function that given the path of the backups file and the size of the posts' intervals creates a reference
     collection of random posts
@@ -226,11 +229,52 @@ def obtain_reference_collection(path: str, max_block_size: int, posts_per_block:
     :param max_block_size: int - number of posts per date interval
     :param posts_per_block: int - number of posts to obtain per interval
     :param base_date: int - date to start searching
+    :param posts: # TODO
 
     """
 
     # To put the timestamp in the filename
     timestamp = date_utils.get_current_timestamp("0100")
+
+    if posts is not None:
+        resp = generate_block(posts, True, max_block_size, posts_per_block, base_date, timestamp)
+    else:
+        with open(path, "r") as readfile:
+            resp = generate_block(readfile, False, max_block_size, posts_per_block, base_date, timestamp)
+
+    if resp[0] > 0:
+        # Write remaining
+        if resp[4] < base_date:
+            end_date = date_utils.get_numeric_timestamp_from_iso(resp[7]["created_utc"])
+            extract_posts(resp[4], end_date, posts_per_block,
+                          timestamp)
+
+    logger.debug("Generated documents between {} and {} with {} documents per interval (size {})".format(
+        resp[6],
+        resp[5],
+        posts_per_block,
+        max_block_size))
+    logger.debug("Total elapsed time generating the collection: {} seconds".format(resp[3]))
+    logger.debug("{} documents where skipped because newer than {} and {} documents where generated".format(
+        resp[2],
+        date_utils.get_iso_date_str(base_date),
+        resp[1]))
+
+
+def generate_block(posts: Iterable, es: bool, max_block_size: int, posts_per_block: int, base_date: int,
+                   timestamp: int):
+    """
+    # TODO
+
+    :param posts:
+    :param es:
+    :param max_block_size:
+    :param posts_per_block:
+    :param base_date:
+    :param timestamp:
+    :return:
+
+    """
 
     # Actual count of posts
     current_block_size = 0
@@ -248,54 +292,40 @@ def obtain_reference_collection(path: str, max_block_size: int, posts_per_block:
     ok_docs = 0
     initial_date = None
 
-    with open(path, "r") as readfile:
-        for line in readfile:
+    for line in posts:
+        if es:
+            temp = json.loads(line["_source"])
+        else:
             temp = json.loads(line)
-            last_post = temp
+        last_post = temp
 
-            if start_date is None:  # First time
-                # Set initial date
-                start_date = date_utils.get_numeric_timestamp_from_iso(temp["created_utc"])
-                if start_date > base_date:  # Skip posts newer than date passed as parameter
-                    start_date = None
-                    skipped += 1
-                else:
-                    initial_date = temp["created_utc"]
-
+        if start_date is None:  # First time
+            # Set initial date
+            start_date = date_utils.get_numeric_timestamp_from_iso(temp["created_utc"])
+            if start_date > base_date:  # Skip posts newer than date passed as parameter
+                start_date = None
+                skipped += 1
             else:
-                current_block_size += 1
+                initial_date = temp["created_utc"]
 
-                if current_block_size == max_block_size:
-                    temp = json.loads(line)
-                    end_date = date_utils.get_numeric_timestamp_from_iso(temp["created_utc"])
+        else:
+            current_block_size += 1
 
-                    # Write interval of random posts to file
-                    resp = extract_posts(start_date, end_date, posts_per_block, timestamp)
-                    total_time += resp[0]
-                    ok_docs += resp[1]
+            if current_block_size == max_block_size:
+                temp = json.loads(line)
+                end_date = date_utils.get_numeric_timestamp_from_iso(temp["created_utc"])
 
-                    # Reset
-                    current_block_size = 0
-                    start_date = end_date
+                # Write interval of random posts to file
+                resp = extract_posts(start_date, end_date, posts_per_block, timestamp)
+                total_time += resp[0]
+                ok_docs += resp[1]
 
-    if current_block_size > 0:
-        # Write remaining
-        if start_date < base_date:
-            end_date = date_utils.get_numeric_timestamp_from_iso(last_post["created_utc"])
-            extract_posts(start_date, end_date, posts_per_block,
-                          timestamp)
+                # Reset
+                current_block_size = 0
+                start_date = end_date
 
-    logger.debug("Generated documents between {} and {} with {} documents per interval (size {})".format(
-        initial_date,
-        end_date,
-        posts_per_block,
-        max_block_size))
-    logger.debug("Total elapsed time generating the collection: {} seconds".format(total_time))
-    logger.debug("{} documents where skipped because newer than {} and {} documents where generated".format(
-        skipped,
-        date_utils.get_iso_date_str(base_date),
-        ok_docs))
+    return [current_block_size, ok_docs, skipped, total_time, start_date, end_date, initial_date, last_post]
 
 
 # extract_posts_from_scales("./excel/one_query.xlsx", 1000)
-obtain_reference_collection("./backups/all_queries_1583741552.jsonl", 1000, 1000, 1582243200)
+# obtain_reference_collection("./backups/all_queries_1583741552.jsonl", 1000, 1000, 1582243200)
