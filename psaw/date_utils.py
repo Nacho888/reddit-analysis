@@ -15,7 +15,7 @@ def get_iso_date_str(timestamp: int, utc_offset: Optional[str] = None):
     Function that returns a formatted ISO-8601 timestamp given the milliseconds epoch value and the utc_offset
 
     :param timestamp: int - the timestamp in epoch milliseconds
-    :param utc_offset: str/None - the utc code
+    :param utc_offset: str/None - the utc code (default GMT)
     :return: timestamp: str - formatted timestamp
     """
 

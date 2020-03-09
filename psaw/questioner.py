@@ -1,12 +1,13 @@
 import elasticsearch
 import json
 import os
-#####
-import logging_factory
 import logging
 #####
-from elasticsearch import Elasticsearch
-
+import date_utils
+import file_manager
+import logging_factory
+#####
+from elasticsearch import Elasticsearch, helpers
 #####
 logger_err = logging_factory.get_module_logger("questioner_err", logging.ERROR)
 logger = logging_factory.get_module_logger("questioner", logging.DEBUG)
@@ -59,7 +60,34 @@ def extract_queries(path: str, filename: str):
                     logger_err.error("No results found for query {} - {}".format(i, data[0]["descriptions"][i]))
 
 
+def extract_posts_ordered_by_timestamp():
+    """
+    Function that writes to a file all the posts in ElasticSearch (sorted by descending date)
+
+    """
+    timestamp = date_utils.get_current_timestamp("0000")
+    body = {"query": {"match_all": {}}, "sort": [{"created_utc": {"order": "desc"}}]}
+    try:
+        es = Elasticsearch([{"host": "localhost", "port": "9200"}])
+        try:
+            # Use scan to return a generator
+            # preserve_order = True -> may impact performance but we need to preserve the date order of the query
+            response = helpers.scan(es, query=body, preserve_order=True, index="depression_index")
+            for post in response:
+                file_manager.write_to_file(post["_source"], "./backups", "all_queries_{}.jsonl".format(timestamp))
+        except (elasticsearch.NotFoundError, elasticsearch.RequestError):
+            logger_err.error("Error when performing the query against ElasticSearch - {}".format("Posts ordered"
+                                                                                                 "by timestamp"))
+    except (elasticsearch.ConnectionTimeout, elasticsearch.ConnectionError):
+        logger_err.error("ElasticSearch client problem (check if open)")
+        pass
+
+
 def obtain_posts_per_hour_interval():
+    """
+    Function that prints all the hour intervals [0-23] with their document count
+
+    """
     for i in range(24):
         to = i + 1 if i < 23 else 0
 
@@ -72,6 +100,10 @@ def obtain_posts_per_hour_interval():
 
 
 def obtain_posts_per_hour():
+    """
+    Function that print all the hours [0-23] (not intervals) with their corresponding number of posts
+
+    """
     name = "Posts per hour"
     key_name = "Hour"
     body = {"size": 0, "aggs": {
@@ -85,5 +117,6 @@ def obtain_posts_per_hour():
     print(resp_dict)
 
 
-obtain_posts_per_hour()
+# obtain_posts_per_hour()
 # extract_queries(".", "queries.json")
+extract_posts_ordered_by_timestamp()

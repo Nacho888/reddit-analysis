@@ -91,19 +91,10 @@ def del_backups():
                     logger_err.error("Error when deleting backups' folder")
 
 
-def join_backup_files(path: str):
-    for root, subdirs, files in os.walk(path):
-        for file in files:
-            with open(os.path.join(root, file), "r") as input_file:
-                for line in input_file:
-                    write_to_file(json.loads(line), path, "all_queries.jsonl")
-
-
 def check_json(path, change_name):
     """
-    USE ONLY IF ERRORED DOCUMENTS!
-
-    Function that checks the correct format of .jsonl files (in special date formats and not needed lines)
+    Function that checks the correct format of the .jsonl files (in special date formats and not needed lines); it
+    changes int timestamps to ISO8601 date format, deletes errored lines and add a field called "hour"
 
     :param path: str - path where the backups' folder is
     :param change_name: bool - True if you want to delete the files took as base for updating (recommended after the
@@ -148,5 +139,4 @@ def check_json(path, change_name):
 
 
 # check_json("./backups/", True)
-# join_backup_files("./backups")
-del_backups()
+# del_backups()

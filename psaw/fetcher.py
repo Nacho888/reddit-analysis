@@ -216,13 +216,13 @@ def extract_posts(start_date: str, end_date: str, size: int, timestamp: str):
 
 def obtain_reference_collection(path: str, max_block_size: int, posts_per_block: int, base_date: int):
     """
-    Function that given the path of the backups' folder and the size of the posts' intervals creates a reference
+    Function that given the path of the backups file and the size of the posts' intervals creates a reference
     collection of random posts
 
     # 1 January 2020 00:00:00 (GMT +00:00) -> 1577836800
     # 4 March 2020 00:00:00 (GMT +00:00) -> 1583280000
 
-    :param path: str - the path to the backups' folder
+    :param path: str - the path to the backups file
     :param max_block_size: int - number of posts per date interval
     :param posts_per_block: int - number of posts to obtain per interval
     :param base_date: int - date to start searching
@@ -248,37 +248,35 @@ def obtain_reference_collection(path: str, max_block_size: int, posts_per_block:
     ok_docs = 0
     initial_date = None
 
-    for root, subdirs, files in os.walk(path):
-        for file in files:
-            with open(os.path.join(root, file), "r") as readfile:
-                for line in readfile:
+    with open(path, "r") as readfile:
+        for line in readfile:
+            temp = json.loads(line)
+            last_post = temp
+
+            if start_date is None:  # First time
+                # Set initial date
+                start_date = date_utils.get_numeric_timestamp_from_iso(temp["created_utc"])
+                if start_date > base_date:  # Skip posts newer than date passed as parameter
+                    start_date = None
+                    skipped += 1
+                else:
+                    initial_date = temp["created_utc"]
+
+            else:
+                current_block_size += 1
+
+                if current_block_size == max_block_size:
                     temp = json.loads(line)
-                    last_post = temp
+                    end_date = date_utils.get_numeric_timestamp_from_iso(temp["created_utc"])
 
-                    if start_date is None:  # First time
-                        # Set initial date
-                        start_date = date_utils.get_numeric_timestamp_from_iso(temp["created_utc"])
-                        if start_date > base_date:  # Skip posts newer than date passed as parameter
-                            start_date = None
-                            skipped += 1
-                        else:
-                            initial_date = temp["created_utc"]
+                    # Write interval of random posts to file
+                    resp = extract_posts(start_date, end_date, posts_per_block, timestamp)
+                    total_time += resp[0]
+                    ok_docs += resp[1]
 
-                    else:
-                        current_block_size += 1
-
-                        if current_block_size == max_block_size:
-                            temp = json.loads(line)
-                            end_date = date_utils.get_numeric_timestamp_from_iso(temp["created_utc"])
-
-                            # Write interval of random posts to file
-                            resp = extract_posts(start_date, end_date, posts_per_block, timestamp)
-                            total_time += resp[0]
-                            ok_docs += resp[1]
-
-                            # Reset
-                            current_block_size = 0
-                            start_date = end_date
+                    # Reset
+                    current_block_size = 0
+                    start_date = end_date
 
     if current_block_size > 0:
         # Write remaining
@@ -299,17 +297,5 @@ def obtain_reference_collection(path: str, max_block_size: int, posts_per_block:
         ok_docs))
 
 
-def obtain_first_post_before_date(path: str, timestamp: int):
-    for root, subdirs, files in os.walk(path):
-        for file in files:
-            with open(os.path.join(root, file), "r") as readfile:
-                for line in readfile:
-                    temp = json.loads(line)
-                    if date_utils.get_numeric_timestamp_from_iso(temp["created_utc"]) <= timestamp:
-                        print("ID: {} - DATE: {}".format(temp["id"], temp["created_utc"]))
-                        break
-
-
 # extract_posts_from_scales("./excel/one_query.xlsx", 1000)
-# obtain_reference_collection("./backups/", 100, 1000, 1577836800)
-# obtain_first_post_before_date("./backups/", 1583280000)
+obtain_reference_collection("./backups/all_queries_1583741552.jsonl", 1000, 1000, 1582243200)

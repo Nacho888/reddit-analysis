@@ -101,7 +101,7 @@ def index_from_file(path: str, host: str, port: str, _index: str, _type: str, li
                     ok_docs += index_data(lines, host, port, _index, _type)
                     lines = []
 
-        logger.debug("{} documents indexed successfully".format(ok_docs))
+            logger.debug("{} documents indexed successfully".format(ok_docs))
 
 
-index_from_file("./backups/", "localhost", "9200", "depression_index", "reddit_doc", 1000)
+index_from_file("./backups/", "localhost", "9200", "depression_index-1", "reddit_doc", 5000)
