@@ -36,6 +36,13 @@ def write_to_file(data: dict, save_path: str, filename: str):
 
 
 def count_lines_file(path: str):
+    """
+    Function that returns the number of lines of a file given its path
+
+    :param path: str - the path to the file
+    :return: int - the number of lines of the file
+
+    """
     with open(path) as f:
         for i, l in enumerate(f):
             pass

@@ -51,6 +51,10 @@ def get_module_logger(mod_name: str, level: int):
 
 
 def check_structure():
+    """
+    Function that checks that all the corresponding file used by the logging are present
+
+    """
     logs_path = "./logs/"
     # Create, if not present, folder to store program's logs (and logs)
     try:

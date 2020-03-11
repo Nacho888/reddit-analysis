@@ -9,7 +9,6 @@ import file_manager
 import logging_factory
 #####
 from elasticsearch import Elasticsearch, helpers
-
 #####
 logger_err = logging_factory.get_module_logger("questioner_err", logging.ERROR)
 logger = logging_factory.get_module_logger("questioner", logging.DEBUG)
@@ -64,15 +63,13 @@ def extract_queries(path: str, filename: str):
 
 def extract_posts_ordered_by_timestamp(generate_file: bool, max_block_size: int, posts_per_block: int, base_date: int):
     """
-    # TODO
-
     Function that writes to a file all the posts in ElasticSearch (sorted by descending date)
 
     :param generate_file: bool - True if you want to merge all docs in a single document ordered by date, False if you
     just want to generate the reference collection
-    :param max_block_size:
-    :param posts_per_block:
-    :param base_date:
+    :param max_block_size: int - number of posts per date interval
+    :param posts_per_block: int - number of posts to obtain per interval
+    :param base_date: int - the limit timestamp (posts must be older that this)
 
     """
     # To put the timestamp in the filename
@@ -111,8 +108,7 @@ def obtain_posts_per_hour_interval():
         to = i + 1 if i < 23 else 0
 
         body = {"size": 0,
-                "aggs": {"Hour ranges": {"range": {"field": "post_hour", "ranges": [{"from": i, "to": to}]}}}
-                }
+                "aggs": {"Hour ranges": {"range": {"field": "post_hour", "ranges": [{"from": i, "to": to}]}}}}
 
         response = perform_search("depression_index", "localhost", "9200", body,
                                   "Posts from {} hours to {} hours".format(i, to))
@@ -127,9 +123,7 @@ def obtain_posts_per_hour():
     name = "Posts per hour"
     key_name = "Hour"
     body = {"size": 0, "aggs": {
-        name: {"composite": {"size": 24, "sources": [{key_name: {"terms": {"field": "post_hour"}}}]}}
-    }
-            }
+            name: {"composite": {"size": 24, "sources": [{key_name: {"terms": {"field": "post_hour"}}}]}}}}
 
     response = perform_search("depression_index", "localhost", "9200", body, "Posts per hour")
     resp_dict = {}

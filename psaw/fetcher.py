@@ -11,6 +11,7 @@ import logging_factory
 import date_utils
 #####
 from psaw import PushshiftAPI
+
 #####
 logger_err = logging_factory.get_module_logger("fetcher_err", logging.ERROR)
 logger = logging_factory.get_module_logger("fetcher", logging.DEBUG)
@@ -124,7 +125,8 @@ def extract_posts_from_scales(excel_path: str, max_posts_per_query: int):
                         post["parameters"] = {"query": query, "scale": scale, "thematic": thematic, "related": {
                             "codes": related_codes,
                             "related_scales": related_scales
-                        }}
+                        }
+                                              }
                         # Change date formats to ISO-8601 strings
                         post["created_utc"] = date_utils.get_iso_date_str(post["created_utc"], "0000")
                         post["retrieved_on"] = date_utils.get_iso_date_str(post["retrieved_on"], "0000")
@@ -195,8 +197,9 @@ def extract_posts(start_date: str, end_date: str, size: int, timestamp: int):
 
     for resp_post in response:
         post = convert_response(resp_post)
+        test = json.dumps(post)
 
-        if bool(post):
+        if bool(post) and test.startswith('{"id":'):
             # Extra fields (only if post is not empty): no query and 'random_baseline' for the scale (thematic
             # set to False)
             post["parameters"] = {"query": "", "scale": "random_baseline", "thematic": thematic}
@@ -228,8 +231,9 @@ def obtain_reference_collection(path: str, max_block_size: int, posts_per_block:
     :param path: str - the path to the backups file
     :param max_block_size: int - number of posts per date interval
     :param posts_per_block: int - number of posts to obtain per interval
-    :param base_date: int - date to start searching
-    :param posts: # TODO
+    :param base_date: int - the limit timestamp (posts must be older that this)
+    :param posts: Iterable - a generator from ElasticSearch (omits file specified in 'path' if so) /
+    None -> defaults to textIO from file in the path specified as parameter
 
     """
 
@@ -237,21 +241,24 @@ def obtain_reference_collection(path: str, max_block_size: int, posts_per_block:
     timestamp = date_utils.get_current_timestamp("0100")
 
     if posts is not None:
-        resp = generate_block(posts, True, max_block_size, posts_per_block, base_date, timestamp)
+        resp = generate_blocks(posts, True, max_block_size, posts_per_block, base_date, timestamp)
     else:
         with open(path, "r") as readfile:
-            resp = generate_block(readfile, False, max_block_size, posts_per_block, base_date, timestamp)
+            resp = generate_blocks(readfile, False, max_block_size, posts_per_block, base_date, timestamp)
 
+    end_date = resp[5]
     if resp[0] > 0:
         # Write remaining
         if resp[4] < base_date:
             end_date = date_utils.get_numeric_timestamp_from_iso(resp[7]["created_utc"])
-            extract_posts(resp[4], end_date, posts_per_block,
-                          timestamp)
+            second_resp = extract_posts(resp[4], end_date, posts_per_block,
+                                        timestamp)
+            resp[3] += second_resp[0]  # Add the time spent with the remaining documents
+            resp[1] += second_resp[1]  # Add the successful documents
 
     logger.debug("Generated documents between {} and {} with {} documents per interval (size {})".format(
         resp[6],
-        date_utils.get_iso_date_str(resp[5]),
+        date_utils.get_iso_date_str(end_date),
         posts_per_block,
         max_block_size))
     logger.debug("Total elapsed time generating the collection: {} seconds".format(resp[3]))
@@ -261,18 +268,27 @@ def obtain_reference_collection(path: str, max_block_size: int, posts_per_block:
         resp[1]))
 
 
-def generate_block(posts: Iterable, es: bool, max_block_size: int, posts_per_block: int, base_date: int,
-                   timestamp: int):
+def generate_blocks(posts: Iterable, es: bool, max_block_size: int, posts_per_block: int, base_date: int,
+                    timestamp: int):
     """
-    # TODO
+    Function that given an Iterable containing the posts, the interval between posts, the posts to generate within that
+    interval, the base date (posts must be older than this date) and a timestamp for the filename
 
-    :param posts:
-    :param es:
-    :param max_block_size:
-    :param posts_per_block:
-    :param base_date:
-    :param timestamp:
-    :return:
+    :param posts: Iterable - posts to obtain the intervals from
+    :param es: bool - True if the posts are coming from ElasticSearch, False otherwise
+    :param max_block_size: int - the posts to skip to find a new date
+    :param posts_per_block: int - the amount of posts to be generated within the interval
+    :param base_date: int - the limit timestamp (posts must be older that this)
+    :param timestamp: int - the timestamp for the filename
+    :return: list - all the data obtained during the generation of the collection
+        [0]: int - posts remaining
+        [1]: int - documents successfully saved
+        [2]: int - documents skipped (newer than date)
+        [3]: float - total time spent generating the collecting
+        [4]: int - start date of the final interval if there were documents remaining
+        [5]: int - end date of the last interval
+        [6]: str - the first date obtained older that the base date
+        [7]: dict - the last post obtained
 
     """
 
