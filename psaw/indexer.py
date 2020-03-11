@@ -71,9 +71,9 @@ def index_data(data: list, host: str, port: str, _index: str, _type: str):
 
 def index_from_file(path: str, host: str, port: str, _index: str, _type: str, limit: int):
     """
-    Function that given the path where all the backups are stored, indexes all the documents
+    Function that given the path of the backups file, indexes all the documents
 
-    :param path: str - path where the backups' folder is
+    :param path: str - path where the backups file is
     :param host: str - host to connect to
     :param port: str - port to connect to
     :param _index: str - the index name
@@ -87,21 +87,19 @@ def index_from_file(path: str, host: str, port: str, _index: str, _type: str, li
 
     logger.debug("Parameters to establish connection with ElasticSearch -> (host: '{}', port: '{}')".format(host, port))
 
-    for root, subdirs, files in os.walk(path):
-        for file in files:
-            with open(os.path.join(root, file), "r") as readfile:
-                for line in readfile:
-                    if len(lines) == limit:
-                        ok_docs += index_data(lines, host, port, _index, _type)
-                        lines = []
-                    else:
-                        lines.append(line)
-                # There's remaining documents
-                if len(lines) > 0:
-                    ok_docs += index_data(lines, host, port, _index, _type)
-                    lines = []
+    with open(os.path.join(path), "r") as readfile:
+        for line in readfile:
+            if len(lines) == limit:
+                ok_docs += index_data(lines, host, port, _index, _type)
+                lines = []
+            else:
+                lines.append(line)
+        # There's remaining documents
+        if len(lines) > 0:
+            ok_docs += index_data(lines, host, port, _index, _type)
+            lines = []
 
-            logger.debug("{} documents indexed successfully".format(ok_docs))
+    logger.debug("{} documents indexed successfully".format(ok_docs))
 
 
-index_from_file("./backups/", "localhost", "9200", "depression_index-1", "reddit_doc", 5000)
+# index_from_file("", "localhost", "9200", "depression_index-1", "reddit_doc", 5000)

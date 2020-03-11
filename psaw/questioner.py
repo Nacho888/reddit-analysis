@@ -9,6 +9,7 @@ import file_manager
 import logging_factory
 #####
 from elasticsearch import Elasticsearch, helpers
+
 #####
 logger_err = logging_factory.get_module_logger("questioner_err", logging.ERROR)
 logger = logging_factory.get_module_logger("questioner", logging.DEBUG)
@@ -76,25 +77,28 @@ def extract_posts_ordered_by_timestamp(generate_file: bool, max_block_size: int,
     """
     # To put the timestamp in the filename
     timestamp = date_utils.get_current_timestamp("0100")
+    filename = "all_queries_{}.jsonl".format(timestamp)
 
     body = {"query": {"match_all": {}}, "sort": [{"created_utc": {"order": "desc"}}]}
     try:
-        es = Elasticsearch([{"host": "localhost", "port": "9200"}])
+        es = Elasticsearch([{"host": "localhost", "port": "9200"}], timeout=30)
         try:
             # Use scan to return a generator
             # preserve_order = True -> may impact performance but we need to preserve the date order of the query
-            response = helpers.scan(es, query=body, preserve_order=True, index="depression_index")
+            response = helpers.scan(es, query=body, preserve_order=True, index="depression_index-1")
             if bool(response):
                 if generate_file:
                     for post in response:
-                        file_manager.write_to_file(post["_source"], "./backups",
-                                                   "all_queries_{}.jsonl".format(timestamp))
-                fetcher.obtain_reference_collection("", max_block_size, posts_per_block, base_date, response)
+                        file_manager.write_to_file(post["_source"], "./backups", filename)
+                # TODO: hardcoded path to file just to fast-generation
+                # fetcher.obtain_reference_collection(os.path.join("./backups", filename), max_block_size,
+                # posts_per_block, base_date, response)
         except (elasticsearch.NotFoundError, elasticsearch.RequestError):
             logger_err.error("Error when performing the query against ElasticSearch - {}".format("Posts ordered"
                                                                                                  "by timestamp"))
-    except (elasticsearch.ConnectionTimeout, elasticsearch.ConnectionError):
+    except (elasticsearch.ConnectionTimeout, elasticsearch.ConnectionError) as e:
         logger_err.error("ElasticSearch client problem (check if open)")
+        logger_err.error(e)
         pass
 
 
@@ -107,7 +111,8 @@ def obtain_posts_per_hour_interval():
         to = i + 1 if i < 23 else 0
 
         body = {"size": 0,
-                "aggs": {"Hour ranges": {"range": {"field": "post_hour", "ranges": [{"from": i, "to": to}]}}}}
+                "aggs": {"Hour ranges": {"range": {"field": "post_hour", "ranges": [{"from": i, "to": to}]}}}
+                }
 
         response = perform_search("depression_index", "localhost", "9200", body,
                                   "Posts from {} hours to {} hours".format(i, to))
@@ -122,7 +127,9 @@ def obtain_posts_per_hour():
     name = "Posts per hour"
     key_name = "Hour"
     body = {"size": 0, "aggs": {
-        name: {"composite": {"size": 24, "sources": [{key_name: {"terms": {"field": "post_hour"}}}]}}}}
+        name: {"composite": {"size": 24, "sources": [{key_name: {"terms": {"field": "post_hour"}}}]}}
+    }
+            }
 
     response = perform_search("depression_index", "localhost", "9200", body, "Posts per hour")
     resp_dict = {}
@@ -134,4 +141,4 @@ def obtain_posts_per_hour():
 
 # obtain_posts_per_hour()
 # extract_queries(".", "queries.json")
-extract_posts_ordered_by_timestamp(False, 1000, 1000, 1577836800)
+# extract_posts_ordered_by_timestamp(False, 1000, 1000, 1577836800)

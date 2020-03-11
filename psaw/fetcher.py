@@ -70,6 +70,9 @@ def extract_posts_from_scales(excel_path: str, max_posts_per_query: int):
     # API
     api = PushshiftAPI()
 
+    # Timestamp for the filename
+    query_timestamp = date_utils.get_current_timestamp("0100")
+
     # Time calculation
     total_elapsed_time = 0
 
@@ -98,9 +101,6 @@ def extract_posts_from_scales(excel_path: str, max_posts_per_query: int):
             query = query_data[0]
 
             logger.debug("Trying to perform query: '{}'".format(query))
-
-            # Timestamp for the filename
-            query_timestamp = date_utils.get_current_timestamp("0100")
 
             # Measure elapsed time
             start = time.time()
@@ -133,7 +133,7 @@ def extract_posts_from_scales(excel_path: str, max_posts_per_query: int):
                         #####
 
                         # File backup
-                        saved = file_manager.write_scale_post_to_backup(post, query, scale, query_timestamp)
+                        saved = file_manager.write_to_file(post, "./backups/", "all_queries_{}".format(query_timestamp))
                         if saved:
                             ok_docs += 1
             else:
@@ -251,7 +251,7 @@ def obtain_reference_collection(path: str, max_block_size: int, posts_per_block:
 
     logger.debug("Generated documents between {} and {} with {} documents per interval (size {})".format(
         resp[6],
-        resp[5],
+        date_utils.get_iso_date_str(resp[5]),
         posts_per_block,
         max_block_size))
     logger.debug("Total elapsed time generating the collection: {} seconds".format(resp[3]))
@@ -324,8 +324,10 @@ def generate_block(posts: Iterable, es: bool, max_block_size: int, posts_per_blo
                 current_block_size = 0
                 start_date = end_date
 
-    return [current_block_size, ok_docs, skipped, total_time, start_date, end_date, initial_date, last_post]
+    result = [current_block_size, ok_docs, skipped, total_time, start_date, end_date, initial_date, last_post]
+
+    return result
 
 
 # extract_posts_from_scales("./excel/one_query.xlsx", 1000)
-# obtain_reference_collection("./backups/all_queries_1583741552.jsonl", 1000, 1000, 1582243200)
+obtain_reference_collection("./backups/all_queries_1583765961.jsonl", 1000, 2500, 1577836800)
