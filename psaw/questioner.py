@@ -66,7 +66,7 @@ def extract_posts_ordered_by_timestamp(generate_file: bool, max_block_size: int,
     Function that writes to a file all the posts in ElasticSearch (sorted by descending date)
 
     :param generate_file: bool - True if you want to merge all docs in a single document ordered by date, False if you
-    just want to generate the reference collection
+    just want to generate the reference collection using ElasticSearch
     :param max_block_size: int - number of posts per date interval
     :param posts_per_block: int - number of posts to obtain per interval
     :param base_date: int - the limit timestamp (posts must be older that this)
@@ -82,14 +82,14 @@ def extract_posts_ordered_by_timestamp(generate_file: bool, max_block_size: int,
         try:
             # Use scan to return a generator
             # preserve_order = True -> may impact performance but we need to preserve the date order of the query
-            response = helpers.scan(es, query=body, preserve_order=True, index="depression_index-1")
+            response = helpers.scan(es, query=body, preserve_order=True, index="depression_index-2")
             if bool(response):
                 if generate_file:
                     for post in response:
                         file_manager.write_to_file(post["_source"], "./backups", filename)
-                # TODO: hardcoded path to file just to fast-generation
-                # fetcher.obtain_reference_collection(os.path.join("./backups", filename), max_block_size,
-                # posts_per_block, base_date, response)
+                # Finally generate the reference collection using the response from ElasticSearch
+                fetcher.obtain_reference_collection("", max_block_size,
+                                                    posts_per_block, base_date, response)
         except (elasticsearch.NotFoundError, elasticsearch.RequestError):
             logger_err.error("Error when performing the query against ElasticSearch - {}".format("Posts ordered"
                                                                                                  "by timestamp"))
@@ -108,7 +108,8 @@ def obtain_posts_per_hour_interval():
         to = i + 1 if i < 23 else 0
 
         body = {"size": 0,
-                "aggs": {"Hour ranges": {"range": {"field": "post_hour", "ranges": [{"from": i, "to": to}]}}}}
+                "aggs": {"Hour ranges": {"range": {"field": "post_hour", "ranges": [{"from": i, "to": to}]}}}
+                }
 
         response = perform_search("depression_index", "localhost", "9200", body,
                                   "Posts from {} hours to {} hours".format(i, to))
@@ -123,7 +124,9 @@ def obtain_posts_per_hour():
     name = "Posts per hour"
     key_name = "Hour"
     body = {"size": 0, "aggs": {
-            name: {"composite": {"size": 24, "sources": [{key_name: {"terms": {"field": "post_hour"}}}]}}}}
+        name: {"composite": {"size": 24, "sources": [{key_name: {"terms": {"field": "post_hour"}}}]}}
+    }
+            }
 
     response = perform_search("depression_index", "localhost", "9200", body, "Posts per hour")
     resp_dict = {}
@@ -135,4 +138,4 @@ def obtain_posts_per_hour():
 
 # obtain_posts_per_hour()
 # extract_queries(".", "queries.json")
-# extract_posts_ordered_by_timestamp(False, 1000, 1000, 1577836800)
+extract_posts_ordered_by_timestamp(False, 1000, 1000, 1577836800)

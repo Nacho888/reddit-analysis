@@ -241,6 +241,7 @@ def obtain_reference_collection(path: str, max_block_size: int, posts_per_block:
     timestamp = date_utils.get_current_timestamp("0100")
 
     if posts is not None:
+        print("Data coming from ES loaded...")
         resp = generate_blocks(posts, True, max_block_size, posts_per_block, base_date, timestamp)
     else:
         with open(path, "r") as readfile:
@@ -310,7 +311,7 @@ def generate_blocks(posts: Iterable, es: bool, max_block_size: int, posts_per_bl
 
     for line in posts:
         if es:
-            temp = json.loads(line["_source"])
+            temp = line["_source"]
         else:
             temp = json.loads(line)
         last_post = temp
@@ -328,7 +329,10 @@ def generate_blocks(posts: Iterable, es: bool, max_block_size: int, posts_per_bl
             current_block_size += 1
 
             if current_block_size == max_block_size:
-                temp = json.loads(line)
+                if es:
+                    temp = line["_source"]
+                else:
+                    temp = json.loads(line)
                 end_date = date_utils.get_numeric_timestamp_from_iso(temp["created_utc"])
 
                 # Write interval of random posts to file
@@ -346,4 +350,4 @@ def generate_blocks(posts: Iterable, es: bool, max_block_size: int, posts_per_bl
 
 
 # extract_posts_from_scales("./excel/one_query.xlsx", 1000)
-obtain_reference_collection("./backups/all_queries_1583765961.jsonl", 1000, 2500, 1577836800)
+# obtain_reference_collection("./backups/all_queries_1583765961.jsonl", 1000, 2500, 1577836800)
