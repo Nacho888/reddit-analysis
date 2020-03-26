@@ -11,7 +11,6 @@ def get_module_logger(mod_name: str, level: int):
     :param mod_name: str - the name of the module that requests the log
     :param level: int (logging.ERROR or logging.DEBUG) - to decide how to show/store the log
     :return: logger - the configured logger
-
     """
 
     check_structure()
@@ -53,8 +52,8 @@ def get_module_logger(mod_name: str, level: int):
 def check_structure():
     """
     Function that checks that all the corresponding file used by the logging are present
-
     """
+
     logs_path = "./logs/"
     # Create, if not present, folder to store program's logs (and logs)
     try:

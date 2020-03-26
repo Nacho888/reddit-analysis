@@ -1,3 +1,5 @@
+import sys
+
 import elasticsearch
 import json
 import os
@@ -24,8 +26,8 @@ def perform_search(index: str, host: str, port: str, body: dict, description: st
     :param body: dict - the body of the query
     :param description: str - description of the query performed
     :return: response: dict - dictionary containing the response (empty if errored)
-
     """
+
     body = json.dumps(body)
     response = {}
     try:
@@ -48,8 +50,8 @@ def extract_queries(path: str, filename: str):
 
     :param path: str - the path to the queries folder
     :param filename: str - the name of the file
-
     """
+
     with open(os.path.join(path, filename), "r") as file:
         data = json.load(file)
         for i, query in enumerate(data):
@@ -70,8 +72,8 @@ def extract_posts_ordered_by_timestamp(generate_file: bool, max_block_size: int,
     :param max_block_size: int - number of posts per date interval
     :param posts_per_block: int - number of posts to obtain per interval
     :param base_date: int - the limit timestamp (posts must be older that this)
-
     """
+
     # To put the timestamp in the filename
     timestamp = date_utils.get_current_timestamp("0100")
     filename = "all_queries_{}.jsonl".format(timestamp)
@@ -102,8 +104,8 @@ def extract_posts_ordered_by_timestamp(generate_file: bool, max_block_size: int,
 def obtain_posts_per_hour_interval():
     """
     Function that prints all the hour intervals [0-23] with their document count
-
     """
+
     for i in range(24):
         to = i + 1 if i < 23 else 0
 
@@ -119,14 +121,12 @@ def obtain_posts_per_hour_interval():
 def obtain_posts_per_hour():
     """
     Function that print all the hours [0-23] (not intervals) with their corresponding number of posts
-
     """
+
     name = "Posts per hour"
     key_name = "Hour"
     body = {"size": 0, "aggs": {
-        name: {"composite": {"size": 24, "sources": [{key_name: {"terms": {"field": "post_hour"}}}]}}
-    }
-            }
+        name: {"composite": {"size": 24, "sources": [{key_name: {"terms": {"field": "post_hour"}}}]}}}}
 
     response = perform_search("depression_index", "localhost", "9200", body, "Posts per hour")
     resp_dict = {}
@@ -136,6 +136,25 @@ def obtain_posts_per_hour():
     print(resp_dict)
 
 
+def main(argv):
+    if len(argv) == 4:
+        try:
+            argv[0] = bool(argv[0])
+            argv[1] = int(argv[1])
+            argv[2] = int(argv[2])
+            argv[3] = int(argv[4])
+            extract_posts_ordered_by_timestamp(argv[0], argv[1], argv[2], argv[3])
+        except ValueError:
+            logger_err.error("Invalid type of parameters (expected: <bool> <int> <int> <int>)")
+            sys.exit(1)
+    else:
+        logger_err.error("Invalid amount of parameters (expected: 4)")
+        sys.exit(1)
+
+
+if __name__ == "__fetcher__":
+    main(sys.argv[1:])
+
 # obtain_posts_per_hour()
 # extract_queries(".", "queries.json")
-extract_posts_ordered_by_timestamp(False, 1000, 1000, 1577836800)
+# extract_posts_ordered_by_timestamp(False, 1000, 1000, 1577836800)

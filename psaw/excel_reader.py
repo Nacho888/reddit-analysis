@@ -17,7 +17,6 @@ def get_queries_and_scales(path: str, start_row: int, scales_column: int, querie
     :param queries_column: int - column number where the queries are located
     :param related_column: int - column number where the relationship between queries in different scales is located
     :return: result: dict - a dictionary with scales as keys and list of queries as values
-
     """
 
     # Workbook object is created
@@ -95,7 +94,6 @@ def get_related_scales(wb_obj, current_scale: str, codes: list, start_row: int, 
     :param scales_column: int - column number where the scales are located
     :param related_column: int - column number where the relationship between queries in different scales is located
     :return: result: list - the list with the scale names
-
     """
 
     sheet_obj = wb_obj.active

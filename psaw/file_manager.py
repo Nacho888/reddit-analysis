@@ -19,8 +19,8 @@ def write_to_file(data: dict, save_path: str, filename: str):
     :param save_path: str - the path to the file
     :param filename: str - the name of the file
     :return: True/False - true if backup successfully, false otherwise
-
     """
+
     # Write .jsonl file backup
     try:
         with open(os.path.join(save_path, filename), 'a') as outfile:
@@ -41,8 +41,8 @@ def count_lines_file(path: str):
 
     :param path: str - the path to the file
     :return: int - the number of lines of the file
-
     """
+
     with open(path) as f:
         for i, l in enumerate(f):
             pass

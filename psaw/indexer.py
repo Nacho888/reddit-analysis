@@ -1,3 +1,4 @@
+import sys
 import uuid
 import logging
 import os
@@ -21,7 +22,6 @@ def setup_for_index(data: list, _index: str, _type: str, _id: Optional[int] = No
     :param _type: str - the document type
     :param _id: int/None - the id to assign to the document or if None an automatically generated uuid4
     :return yielded document with all the required data
-
     """
 
     for doc in data:
@@ -43,7 +43,6 @@ def index_data(data: list, host: str, port: str, _index: str, _type: str):
     :param _index: str - the index name
     :param _type: str - the document type
     :return: int - number of documents successfully indexed
-
     """
 
     resp = None
@@ -79,7 +78,6 @@ def index_from_file(path: str, host: str, port: str, _index: str, _type: str, li
     :param _index: str - the index name
     :param _type: str - the document type
     :param limit: int - amount of lines to be
-
     """
 
     lines = []
@@ -101,5 +99,26 @@ def index_from_file(path: str, host: str, port: str, _index: str, _type: str, li
 
     logger.debug("{} documents indexed successfully".format(ok_docs))
 
+
+def main(argv):
+    if len(argv) == 6:
+        try:
+            argv[0] = str(argv[0])
+            argv[1] = str(argv[1])
+            argv[2] = str(argv[2])
+            argv[3] = str(argv[3])
+            argv[4] = str(argv[4])
+            argv[5] = int(argv[5])
+            index_from_file(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5])
+        except ValueError:
+            logger_err.error("Invalid type of parameters (expected: <str> <str> <str> <str> <str> <int>)")
+            sys.exit(1)
+    else:
+        logger_err.error("Invalid amount of parameters (expected: 6)")
+        sys.exit(1)
+
+
+if __name__ == "__indexer__":
+    main(sys.argv[1:])
 
 # index_from_file("", "localhost", "9200", "depression_index-1", "reddit_doc", 5000)
