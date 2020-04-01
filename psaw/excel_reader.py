@@ -1,4 +1,4 @@
-import openpyxl
+import pandas as pd
 import logging
 #####
 import logging_factory
@@ -20,48 +20,48 @@ def get_queries_and_scales(path: str, start_row: int, scales_column: int, querie
     """
 
     # Workbook object is created
-    wb_obj = openpyxl.load_workbook(path)
-    sheet_obj = wb_obj.active
-    m_row = sheet_obj.max_row
+    spreadsheet = pd.read_excel(path)
+    m_row = len(spreadsheet.index)
 
     result = {}
     current_scale = ""
 
-    for i in range(start_row, m_row + 1):
-        scale = sheet_obj.cell(row=i, column=scales_column).value
+    for i in range(start_row - 2, m_row):
+        scale = spreadsheet.iloc[i, scales_column - 1]
+        print(scale)
 
         # A new scale appears
-        if scale not in result and scale is not None:
+        if scale not in result and not pd.isna(scale):
             current_scale = scale
             result[scale] = []
 
         # For merged cells
-        if scale is None:
+        if pd.isna(scale):
             scale = current_scale
 
-        query = sheet_obj.cell(row=i, column=queries_column).value
+        query = spreadsheet.iloc[i, queries_column - 1]
         queries = []
 
-        related_code = sheet_obj.cell(row=i, column=related_column).value
+        related_code = spreadsheet.iloc[i, related_column - 1]
         codes = []
         related_scales = []
 
-        if related_code is not None:
+        if related_code is not pd.isna(related_code):
             try:
                 related_code = str(related_code)  # Cast to string just in case we have to split it later
                 to_check_codes = convert_code(related_code)
                 for c in to_check_codes:
-                    if code_present(wb_obj, c, start_row, related_column):
+                    if code_present(spreadsheet, c, start_row, related_column):
                         codes.append(c)
                     else:
                         logger_err.error("Code '{}' appears only one time".format(c))
-                related_scales = get_related_scales(wb_obj, current_scale, codes, start_row, scales_column,
+                related_scales = get_related_scales(spreadsheet, current_scale, codes, start_row, scales_column,
                                                     related_column)
             except ValueError:
                 logger_err.error("Error when casting code in (row: {}, col:{})".format(i, related_column))
 
         to_add = []
-        if query is not None:
+        if not pd.isna(query):
             if "," in query:  # Multiple queries in the same cell
                 queries = query.split(",")
             if len(queries) > 0:
@@ -79,15 +79,17 @@ def get_queries_and_scales(path: str, start_row: int, scales_column: int, querie
                 result[scale].append(to_add)
 
     logger.debug("Scales and queries loaded")
+    print(result)
 
     return result
 
 
-def get_related_scales(wb_obj, current_scale: str, codes: list, start_row: int, scales_column: int, related_column: int):
+def get_related_scales(spreadsheet, current_scale: str, codes: list, start_row: int, scales_column: int,
+                       related_column: int):
     """
     Function that returns the name of all the scales related to the relationship code given
 
-    :param wb_obj: the current Excel workbook
+    :param spreadsheet: the current Excel spreadsheet
     :param current_scale: str - current scale to skip it
     :param codes: list - relationship codes
     :param start_row: int - row number where the first query is located
@@ -96,32 +98,31 @@ def get_related_scales(wb_obj, current_scale: str, codes: list, start_row: int, 
     :return: result: list - the list with the scale names
     """
 
-    sheet_obj = wb_obj.active
-    m_row = sheet_obj.max_row
+    m_row = len(spreadsheet.index)
 
     result = []
 
     for code in codes:
-
-        for i in range(m_row, start_row - 1, -1):
+        for i in range(m_row - 1, start_row - 2, -1):
             try:
-                related_code = str(sheet_obj.cell(row=i, column=related_column).value)
+                related_code = str(spreadsheet.iloc[i, related_column - 1])
 
-                if related_code != "None":  # Empty cell
+                if not pd.isna(related_code):  # Empty cell
 
                     codes = convert_code(related_code)
 
                     if code in codes:  # Code is present in cell
-                        scale = sheet_obj.cell(row=i, column=scales_column).value
+                        scale = spreadsheet.iloc[i, scales_column - 1]
 
                         # Row with code, but maybe it doesn't have the scale name
                         # (merged cells - go back until we find the name)
                         j = i
-                        while scale is None:
-                            scale = sheet_obj.cell(row=j, column=scales_column).value
+                        while pd.isna(scale):
+                            scale = spreadsheet.iloc[j, scales_column - 1]
                             j -= 1
 
                         if scale not in result and scale != current_scale:
+
                             result.append(scale)
             except ValueError:
                 result = []
@@ -138,6 +139,7 @@ def convert_code(code: str):
     :param code: str - the code to format
     :return: result: list - the list of codes
     """
+
     result = []
     aux = []
 
@@ -152,23 +154,23 @@ def convert_code(code: str):
     return result
 
 
-def code_present(wb_obj, code: str, start_row: int, related_column: int):
+def code_present(spreadsheet, code: str, start_row: int, related_column: int):
     """
     Function to check if a certain relationship code is present in the spreadsheet
 
-    :param wb_obj: the current Excel workbook
+    :param spreadsheet: the current Excel spreadsheet
     :param code: str - the code to check
     :param start_row: int - row number where the first query is located
     :param related_column: int - column number where the relationship between queries in different scales is located
     :return: found: bool - if the code is found or not
     """
-    sheet_obj = wb_obj.active
-    m_row = sheet_obj.max_row
+
+    m_row = len(spreadsheet.index)
 
     found = False  # scale associated has been found
-    for i in range(start_row, m_row + 1):
+    for i in range(start_row - 2, m_row):
         try:
-            related_code = str(sheet_obj.cell(row=i, column=related_column).value)
+            related_code = str(spreadsheet.iloc[i, related_column - 1])
         except ValueError:
             found = False
             logger_err.error("Error when casting code in (row: {}, col:{})".format(i, related_column))
@@ -178,4 +180,4 @@ def code_present(wb_obj, code: str, start_row: int, related_column: int):
     return found
 
 
-# queries_and_scales = get_queries_and_scales("./excel/scales.xlsx", 5, 2, 4, 5)
+queries_and_scales = get_queries_and_scales("./excel/scales.xlsx", 5, 2, 4, 5)
