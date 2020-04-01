@@ -1,51 +1,58 @@
 import logging
-import os
 import sys
 import time
 import json
 #####
-from typing import Optional, Iterable
-
 import excel_reader
 import file_manager
 import logging_factory
 import date_utils
 #####
 from psaw import PushshiftAPI
-
+from typing import Optional, Iterable
 #####
 logger_err = logging_factory.get_module_logger("fetcher_err", logging.ERROR)
 logger = logging_factory.get_module_logger("fetcher", logging.DEBUG)
 
 
-def convert_response(post: dict):
+def convert_response(post: dict, full_data: bool):
     """
     Function to convert the response into a list with all the required data
 
     :param post: dict - the input dictionary with all the data of the post (we only mind the key "d_" where all the
     important data is stored)
+    :param full_data: bool - if you want the full data of the post (even if errored)
     :return: updated_post: dict - the post the return containing only the required fields returned by the API
     """
 
-    try:
-        p_id = post.d_[id]
-    except KeyError:
-        p_id = "no_id"
-        pass
+    keys_as_str = ["id", "url", "title", "author", "selftext", "created_utc", "retrieved_on", "subreddit",
+                   "subreddit_id", "subreddit_type", "domain", "gildings", "num_comments", "score", "over_18",
+                   "permalink"]
 
-    try:
-        updated_post = dict(id=post.d_["id"], url=post.d_["url"], title=post.d_["title"], author=post.d_["author"],
-                            selftext=post.d_["selftext"], created_utc=post.d_["created_utc"],
-                            retrieved_on=post.d_["retrieved_on"], subreddit=post.d_["subreddit"],
-                            subreddit_id=post.d_["subreddit_id"], subreddit_type=post.d_["subreddit_type"],
-                            domain=post.d_["domain"], gildings=post.d_["gildings"],
-                            num_comments=post.d_["num_comments"], score=post.d_["score"], over_18=post.d_["over_18"],
-                            permalink=post.d_["permalink"])
+    if not full_data:
+        try:
+            p_id = post.d_["id"]
+        except KeyError:
+            p_id = "no_id"
 
-    except KeyError as e:
-        logger_err.error("Key not found [{}] - skipping post with id: {}".format(e, p_id))
-        updated_post = {}  # if it doesn't have all the requested fields, discard the whole post
-        pass
+        try:
+            post_keys = [*post.d_]
+            to_use_keys = [value for value in keys_as_str if value in post_keys]
+
+            updated_post = {}
+
+            for key in to_use_keys:
+                if key == "created_utc" or key == "retrieved_on":
+                    # Change date formats to ISO-8601 strings
+                    updated_post[key] = date_utils.get_iso_date_str(post.d_[key], "0000")
+                else:
+                    updated_post[key] = post.d_[key]
+
+        except KeyError as e:
+            logger_err.error("Key not found [{}] - skipping post with id: {}".format(e, p_id))
+            updated_post = {}  # if it doesn't have all the requested fields, discard the whole post
+    else:
+        updated_post = post.d_
 
     return updated_post
 
@@ -108,7 +115,7 @@ def extract_posts_from_scales(excel_path: str, max_posts_per_query: int):
 
             # Base call with 1 post to extract most recent date
             response = api.search_submissions(q=query, sort_type="created_utc", sort="desc", limit=1)
-            base_dict = convert_response(next(response, False))
+            base_dict = convert_response(next(response), False)
 
             if base_dict:  # We have obtained some result for the query
 
@@ -117,7 +124,7 @@ def extract_posts_from_scales(excel_path: str, max_posts_per_query: int):
                 response = api.search_submissions(q=query, before=most_recent_utc, limit=max_posts_per_query)
 
                 for resp_post in response:
-                    post = convert_response(resp_post)
+                    post = convert_response(resp_post, False)
                     test = json.dumps(post)
 
                     if bool(post) and test.startswith('{"id":'):
@@ -127,8 +134,6 @@ def extract_posts_from_scales(excel_path: str, max_posts_per_query: int):
                             "codes": related_codes,
                             "related_scales": related_scales}}
                         # Change date formats to ISO-8601 strings
-                        post["created_utc"] = date_utils.get_iso_date_str(post["created_utc"], "0000")
-                        post["retrieved_on"] = date_utils.get_iso_date_str(post["retrieved_on"], "0000")
                         post["timestamp"] = date_utils.get_iso_date_str(query_timestamp, "0100")
 
                         #####
@@ -190,10 +195,11 @@ def extract_historic_for_subreddit(subreddit: str, start_date: int):
     start = time.time()
 
     if subreddit is not None:
-        response = api.search_submissions(subreddit=subreddit, sort_type="created_utc", sort="desc", before=start_date)
+        response = api.search_submissions(q="", subreddit=subreddit, sort_type="created_utc", sort="desc",
+                                          before=start_date)
 
         for resp_post in response:
-            post = convert_response(resp_post)
+            post = convert_response(resp_post, False)
             test = json.dumps(post)
 
             if bool(post) and test.startswith('{"id":'):
@@ -207,7 +213,7 @@ def extract_historic_for_subreddit(subreddit: str, start_date: int):
         logger.debug("Total elapsed time performing the historical search: {} seconds".format(elapsed_time))
         logger.debug("Total posts obtained: {}".format(ok_docs))
     else:
-        logger_err.error("Errored subreddit format")
+        logger_err.error("Errored subreddit format: {}".format(subreddit))
 
 
 def extract_posts_for_interval(start_date: int, end_date: int, size: int, timestamp: int, query: str):
@@ -241,17 +247,13 @@ def extract_posts_for_interval(start_date: int, end_date: int, size: int, timest
                                           after=end_date, limit=size)
 
         for resp_post in response:
-            post = convert_response(resp_post)
+            post = convert_response(resp_post, False)
             test = json.dumps(post)
 
             if bool(post) and test.startswith('{"id":'):
                 # Extra fields (only if post is not empty): no query and 'random_baseline' for the scale (thematic
                 # set to False)
                 post["parameters"] = {"query": "", "scale": "random_baseline", "thematic": thematic}
-
-                # Change date formats to ISO 8601
-                post["created_utc"] = date_utils.get_iso_date_str(post["created_utc"], "0000")
-                post["retrieved_on"] = date_utils.get_iso_date_str(post["retrieved_on"], "0000")
 
                 # File backup
                 saved = file_manager.write_to_file(post, "./backups/",
@@ -416,4 +418,4 @@ if __name__ == "__fetcher__":
 
 # extract_posts_from_scales("./excel/one_query.xlsx", 1000)
 # obtain_reference_collection("./backups/all_queries_1583765961.jsonl", 1000, 2500, 1577836800)
-# extract_historic_for_subreddit("depression", 1577836800)
+extract_historic_for_subreddit("depression", 1577836800)

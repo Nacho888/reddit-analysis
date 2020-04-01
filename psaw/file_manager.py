@@ -1,10 +1,8 @@
 import json
 import os
 import logging
-import shutil
 #####
 import logging_factory
-import date_utils
 #####
 logger_err = logging_factory.get_module_logger("file_manager_err", logging.ERROR)
 logger = logging_factory.get_module_logger("file_manager", logging.DEBUG)

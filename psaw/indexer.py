@@ -95,7 +95,6 @@ def index_from_file(path: str, host: str, port: str, _index: str, _type: str, li
         # There's remaining documents
         if len(lines) > 0:
             ok_docs += index_data(lines, host, port, _index, _type)
-            lines = []
 
     logger.debug("{} documents indexed successfully".format(ok_docs))
 
