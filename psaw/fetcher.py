@@ -216,7 +216,7 @@ def extract_historic_for_subreddit(subreddit: str, start_date: int):
         logger_err.error("Errored subreddit format: {}".format(subreddit))
 
 
-def extract_posts_for_interval(start_date: int, end_date: int, size: int, timestamp: int, query: str):
+def extract_posts_for_interval(start_date: int, end_date: int, size: int, timestamp: int, query: str, params: bool):
     """
     Function that extracts N (size) posts in a given time interval
 
@@ -225,7 +225,8 @@ def extract_posts_for_interval(start_date: int, end_date: int, size: int, timest
     :param size: int - maximum number of posts to be retrieved
     :param timestamp: int - timestamp for the filename
     :param query: str/None - query to be performed
-    :return list - elapsed time performing the query and number of successfully saved documents
+    :param params: bool - if you want to add parameters to the post or not
+    :return dict - elapsed time performing the query and number of successfully saved documents
     """
 
     # Parameters
@@ -251,9 +252,10 @@ def extract_posts_for_interval(start_date: int, end_date: int, size: int, timest
             test = json.dumps(post)
 
             if bool(post) and test.startswith('{"id":'):
-                # Extra fields (only if post is not empty): no query and 'random_baseline' for the scale (thematic
-                # set to False)
-                post["parameters"] = {"query": "", "scale": "random_baseline", "thematic": thematic}
+                if params:
+                    # Extra fields (only if post is not empty): no query and 'random_baseline' for the scale (thematic
+                    # set to False)
+                    post["parameters"] = {"query": "", "scale": "random_baseline", "thematic": thematic}
 
                 # File backup
                 saved = file_manager.write_to_file(post, "./backups/",
@@ -264,14 +266,14 @@ def extract_posts_for_interval(start_date: int, end_date: int, size: int, timest
         end = time.time()
         elapsed_time = end - start
 
-        return [elapsed_time, ok_docs]
+        return {"elapsed_time": elapsed_time, "ok_docs": ok_docs}
 
     else:
         logger_err.error("Errored query format")
         return [0, 0]
 
 
-def obtain_reference_collection(path: str, max_block_size: int, posts_per_block: int, base_date: int,
+def obtain_reference_collection(path: str, max_block_size: int, posts_per_block: int, base_date: int, params: bool,
                                 posts: Optional[Iterable] = None):
     """
     Function that given the path of the backups file and the size of the posts' intervals creates a reference
@@ -284,6 +286,7 @@ def obtain_reference_collection(path: str, max_block_size: int, posts_per_block:
     :param max_block_size: int - number of posts per date interval
     :param posts_per_block: int - number of posts to obtain per interval
     :param base_date: int - the limit timestamp (posts must be older that this)
+    :param params: bool - if you want to add parameters to the post or not
     :param posts: Iterable - a generator from ElasticSearch (omits file specified in 'path' if so) /
     None -> defaults to textIO from file in the path specified as parameter
     """
@@ -293,35 +296,35 @@ def obtain_reference_collection(path: str, max_block_size: int, posts_per_block:
 
     if posts is not None:
         print("Data coming from ES loaded...")
-        resp = generate_blocks(posts, True, max_block_size, posts_per_block, base_date, timestamp)
+        resp = generate_blocks(posts, True, max_block_size, posts_per_block, base_date, timestamp, params)
     else:
         with open(path, "r") as readfile:
-            resp = generate_blocks(readfile, False, max_block_size, posts_per_block, base_date, timestamp)
+            resp = generate_blocks(readfile, False, max_block_size, posts_per_block, base_date, timestamp, params)
 
-    end_date = resp[5]
-    if resp[0] > 0:
+    end_date = resp["end_date"]
+    if resp["current_block_size"] > 0:
         # Write remaining
-        if resp[4] < base_date:
-            end_date = date_utils.get_numeric_timestamp_from_iso(resp[7]["created_utc"])
-            second_resp = extract_posts_for_interval(resp[4], end_date, posts_per_block,
-                                                     timestamp, "")
-            resp[3] += second_resp[0]  # Add the time spent with the remaining documents
-            resp[1] += second_resp[1]  # Add the successful documents
+        if resp["start_date"] < base_date:
+            end_date = date_utils.get_numeric_timestamp_from_iso(resp["last_post"]["created_utc"])
+            second_resp = extract_posts_for_interval(resp["start_date"], end_date, posts_per_block,
+                                                     timestamp, "", params)
+            resp["total_time"] += second_resp["elapsed_time"]  # Add the time spent with the remaining documents
+            resp["ok_docs"] += second_resp["ok_docs"]  # Add the successful documents
 
     logger.debug("Generated documents between {} and {} with {} documents per interval (size {})".format(
-        resp[6],
+        resp["initial_date"],
         date_utils.get_iso_date_str(end_date),
         posts_per_block,
         max_block_size))
-    logger.debug("Total elapsed time generating the collection: {} seconds".format(resp[3]))
+    logger.debug("Total elapsed time generating the collection: {} seconds".format(resp["total_time"]))
     logger.debug("{} documents where skipped because newer than {} and {} documents where generated".format(
-        resp[2],
+        resp["skipped"],
         date_utils.get_iso_date_str(base_date),
-        resp[1]))
+        resp["ok_docs"]))
 
 
 def generate_blocks(posts: Iterable, es: bool, max_block_size: int, posts_per_block: int, base_date: int,
-                    timestamp: int):
+                    timestamp: int, params: bool):
     """
     Function that given an Iterable containing the posts, the interval between posts, the posts to generate within that
     interval, the base date (posts must be older than this date) and a timestamp for the filename
@@ -332,15 +335,16 @@ def generate_blocks(posts: Iterable, es: bool, max_block_size: int, posts_per_bl
     :param posts_per_block: int - the amount of posts to be generated within the interval
     :param base_date: int - the limit timestamp (posts must be older that this)
     :param timestamp: int - the timestamp for the filename
-    :return: list - all the data obtained during the generation of the collection
-        [0]: int - posts remaining
-        [1]: int - documents successfully saved
-        [2]: int - documents skipped (newer than date)
-        [3]: float - total time spent generating the collecting
-        [4]: int - start date of the final interval if there were documents remaining
-        [5]: int - end date of the last interval
-        [6]: str - the first date obtained older that the base date
-        [7]: dict - the last post obtained
+    :param params: bool - if you want to add parameters to the post or not
+    :return: dict - all the data obtained during the generation of the collection
+        current_block_size: int - posts remaining
+        ok_docs: int - documents successfully saved
+        skipped: int - documents skipped (newer than date)
+        total_time: float - total time spent generating the collecting
+        skipped: int - start date of the final interval if there were documents remaining
+        end_date: int - end date of the last interval
+        initial_date: str - the first date obtained older that the base date
+        last_post: dict - the last post obtained
     """
 
     # Actual count of posts
@@ -386,7 +390,7 @@ def generate_blocks(posts: Iterable, es: bool, max_block_size: int, posts_per_bl
                 end_date = date_utils.get_numeric_timestamp_from_iso(temp["created_utc"])
 
                 # Write interval of random posts to file
-                resp = extract_posts_for_interval(start_date, end_date, posts_per_block, timestamp, "")
+                resp = extract_posts_for_interval(start_date, end_date, posts_per_block, timestamp, "", params)
                 total_time += resp[0]
                 ok_docs += resp[1]
 
@@ -394,7 +398,9 @@ def generate_blocks(posts: Iterable, es: bool, max_block_size: int, posts_per_bl
                 current_block_size = 0
                 start_date = end_date
 
-    result = [current_block_size, ok_docs, skipped, total_time, start_date, end_date, initial_date, last_post]
+    result = {"current_block_size": current_block_size, "ok_docs": ok_docs, "skipped": skipped,
+              "total_time": total_time, "start_date": start_date, "end_date": end_date,
+              "initial_date": initial_date, "last_post": last_post}
 
     return result
 
@@ -417,5 +423,5 @@ if __name__ == "__fetcher__":
     main(sys.argv[1:])
 
 # extract_posts_from_scales("./excel/one_query.xlsx", 1000)
-# obtain_reference_collection("./backups/all_queries_1583765961.jsonl", 1000, 2500, 1577836800)
-extract_historic_for_subreddit("depression", 1577836800)
+obtain_reference_collection("./backups/r_depression_1585651968.jsonl", 1000, 2500, 1577836800, False, None)
+# extract_historic_for_subreddit("depression", 1577836800)
