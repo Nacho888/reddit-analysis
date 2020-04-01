@@ -1,9 +1,12 @@
+import sys
+
 import elasticsearch
 import json
 import os
 import logging
 #####
 import date_utils
+import fetcher
 import file_manager
 import logging_factory
 #####
@@ -23,8 +26,8 @@ def perform_search(index: str, host: str, port: str, body: dict, description: st
     :param body: dict - the body of the query
     :param description: str - description of the query performed
     :return: response: dict - dictionary containing the response (empty if errored)
-
     """
+
     body = json.dumps(body)
     response = {}
     try:
@@ -47,8 +50,8 @@ def extract_queries(path: str, filename: str):
 
     :param path: str - the path to the queries folder
     :param filename: str - the name of the file
-
     """
+
     with open(os.path.join(path, filename), "r") as file:
         data = json.load(file)
         for i, query in enumerate(data):
@@ -60,39 +63,55 @@ def extract_queries(path: str, filename: str):
                     logger_err.error("No results found for query {} - {}".format(i, data[0]["descriptions"][i]))
 
 
-def extract_posts_ordered_by_timestamp():
+def extract_posts_ordered_by_timestamp(generate_file: bool, max_block_size: int, posts_per_block: int, base_date: int):
     """
     Function that writes to a file all the posts in ElasticSearch (sorted by descending date)
 
+    :param generate_file: bool - True if you want to merge all docs in a single document ordered by date, False if you
+    just want to generate the reference collection using ElasticSearch
+    :param max_block_size: int - number of posts per date interval
+    :param posts_per_block: int - number of posts to obtain per interval
+    :param base_date: int - the limit timestamp (posts must be older that this)
     """
-    timestamp = date_utils.get_current_timestamp("0000")
+
+    # To put the timestamp in the filename
+    timestamp = date_utils.get_current_timestamp("0100")
+    filename = "all_queries_{}.jsonl".format(timestamp)
+
     body = {"query": {"match_all": {}}, "sort": [{"created_utc": {"order": "desc"}}]}
     try:
-        es = Elasticsearch([{"host": "localhost", "port": "9200"}])
+        es = Elasticsearch([{"host": "localhost", "port": "9200"}], timeout=30)
         try:
             # Use scan to return a generator
             # preserve_order = True -> may impact performance but we need to preserve the date order of the query
-            response = helpers.scan(es, query=body, preserve_order=True, index="depression_index")
-            for post in response:
-                file_manager.write_to_file(post["_source"], "./backups", "all_queries_{}.jsonl".format(timestamp))
+            response = helpers.scan(es, query=body, preserve_order=True, index="depression_index-2")
+            if bool(response):
+                if generate_file:
+                    for post in response:
+                        file_manager.write_to_file(post["_source"], "./backups", filename)
+                # Finally generate the reference collection using the response from ElasticSearch
+                fetcher.obtain_reference_collection("", max_block_size,
+                                                    posts_per_block, base_date, response)
         except (elasticsearch.NotFoundError, elasticsearch.RequestError):
             logger_err.error("Error when performing the query against ElasticSearch - {}".format("Posts ordered"
                                                                                                  "by timestamp"))
-    except (elasticsearch.ConnectionTimeout, elasticsearch.ConnectionError):
+    except (elasticsearch.ConnectionTimeout, elasticsearch.ConnectionError) as e:
         logger_err.error("ElasticSearch client problem (check if open)")
+        logger_err.error(e)
         pass
 
 
 def obtain_posts_per_hour_interval():
     """
     Function that prints all the hour intervals [0-23] with their document count
-
     """
+
     for i in range(24):
         to = i + 1 if i < 23 else 0
 
         body = {"size": 0,
-                "aggs": {"Hour ranges": {"range": {"field": "post_hour", "ranges": [{"from": i, "to": to}]}}}}
+                "aggs": {"Hour ranges": {"range": {"field": "post_hour", "ranges": [{"from": i, "to": to}]}}}
+                }
 
         response = perform_search("depression_index", "localhost", "9200", body,
                                   "Posts from {} hours to {} hours".format(i, to))
@@ -102,8 +121,8 @@ def obtain_posts_per_hour_interval():
 def obtain_posts_per_hour():
     """
     Function that print all the hours [0-23] (not intervals) with their corresponding number of posts
-
     """
+
     name = "Posts per hour"
     key_name = "Hour"
     body = {"size": 0, "aggs": {
@@ -117,6 +136,25 @@ def obtain_posts_per_hour():
     print(resp_dict)
 
 
+def main(argv):
+    if len(argv) == 4:
+        try:
+            argv[0] = bool(argv[0])
+            argv[1] = int(argv[1])
+            argv[2] = int(argv[2])
+            argv[3] = int(argv[4])
+            extract_posts_ordered_by_timestamp(argv[0], argv[1], argv[2], argv[3])
+        except ValueError:
+            logger_err.error("Invalid type of parameters (expected: <bool> <int> <int> <int>)")
+            sys.exit(1)
+    else:
+        logger_err.error("Invalid amount of parameters (expected: 4)")
+        sys.exit(1)
+
+
+if __name__ == "__fetcher__":
+    main(sys.argv[1:])
+
 # obtain_posts_per_hour()
 # extract_queries(".", "queries.json")
-extract_posts_ordered_by_timestamp()
+# extract_posts_ordered_by_timestamp(False, 1000, 1000, 1577836800)

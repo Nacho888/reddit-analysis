@@ -67,6 +67,7 @@ def get_current_timestamp(utc_offset: str):
     :param utc_offset: str - the utc code
     :return: int - the current timestamp
     """
+
     # Time format for UTC
     time_format = "%Y-%m-%d %H:%M:%S"
 
@@ -84,7 +85,6 @@ def extract_hour_from_timestamp(date):
 
     :param date: int/str - the date in epoch millis int or in iso 8601 format string
     :return hour: int - the hour associated to the post
-
     """
 
     try:
@@ -99,5 +99,3 @@ def extract_hour_from_timestamp(date):
             logger_err.error("Not compatible format of date")
     except ValueError as e:
         logger_err.error("Error with date format", e)
-
-
