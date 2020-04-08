@@ -79,23 +79,31 @@ def get_current_timestamp(utc_offset: str):
     return int(timestamp)
 
 
-def extract_hour_from_timestamp(date):
+def extract_field_from_timestamp(date, field: str):
     """
     Function that returns the hours associated to a timestamp (int or iso_string format)
 
     :param date: int/str - the date in epoch millis int or in iso 8601 format string
+    :param field: str - the field to extract (hour/month)
     :return hour: int - the hour associated to the post
     """
 
-    try:
-        if isinstance(date, str):
-            d = datetime.strptime(date, '%Y-%m-%dT%H:%M:%S%z')
-            return d.hour
-        elif isinstance(date, int):
-            d = get_iso_date_str(date)
-            d = datetime.strptime(d, '%Y-%m-%dT%H:%M:%S%z')
-            return d.hour
-        else:
-            logger_err.error("Not compatible format of date")
-    except ValueError as e:
-        logger_err.error("Error with date format", e)
+    if field == "year" or field == "hour":
+        try:
+            d = None
+            if isinstance(date, str):
+                d = datetime.strptime(date, '%Y-%m-%dT%H:%M:%S%z')
+            elif isinstance(date, int):
+                d = get_iso_date_str(date)
+                d = datetime.strptime(d, '%Y-%m-%dT%H:%M:%S%z')
+            else:
+                logger_err.error("Not compatible format of date")
+            if d is not None:
+                if field == "hour":
+                    return d.hour
+                elif field == "month":
+                    return d.month
+        except ValueError as e:
+            logger_err.error("Error with date format", e)
+    else:
+        logger_err.error("Invalid field name: {}".format(field))

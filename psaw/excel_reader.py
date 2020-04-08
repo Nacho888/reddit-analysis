@@ -28,7 +28,6 @@ def get_queries_and_scales(path: str, start_row: int, scales_column: int, querie
 
     for i in range(start_row - 2, m_row):
         scale = spreadsheet.iloc[i, scales_column - 1]
-        print(scale)
 
         # A new scale appears
         if scale not in result and not pd.isna(scale):
@@ -180,4 +179,4 @@ def code_present(spreadsheet, code: str, start_row: int, related_column: int):
     return found
 
 
-queries_and_scales = get_queries_and_scales("./excel/scales.xlsx", 5, 2, 4, 5)
+# queries_and_scales = get_queries_and_scales("./excel/scales.xlsx", 5, 2, 4, 5)

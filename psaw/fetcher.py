@@ -139,7 +139,8 @@ def extract_posts_from_scales(excel_path: str, max_posts_per_query: int):
                         #####
 
                         # File backup
-                        saved = file_manager.write_to_file(post, "./backups/", "all_queries_{}".format(query_timestamp))
+                        saved = file_manager.write_to_file(post, "./backups/", "all_queries_{}".format(query_timestamp),
+                                                           "a")
                         if saved:
                             ok_docs += 1
             else:
@@ -204,7 +205,8 @@ def extract_historic_for_subreddit(subreddit: str, start_date: int):
 
             if bool(post) and test.startswith('{"id":'):
                 # File backup
-                saved = file_manager.write_to_file(post, "./backups/", "r_{}_{}.jsonl".format(subreddit, timestamp))
+                saved = file_manager.write_to_file(post, "./backups/", "r_{}_{}.jsonl".format(subreddit, timestamp),
+                                                   "a")
                 if saved:
                     ok_docs += 1
 
@@ -259,7 +261,7 @@ def extract_posts_for_interval(start_date: int, end_date: int, size: int, timest
 
                 # File backup
                 saved = file_manager.write_to_file(post, "./backups/",
-                                                   "reference_collection_{}.jsonl".format(timestamp))
+                                                   "ref_col_{}_{}.jsonl".format(size, timestamp), "a")
                 if saved:
                     ok_docs += 1
 
@@ -391,8 +393,8 @@ def generate_blocks(posts: Iterable, es: bool, max_block_size: int, posts_per_bl
 
                 # Write interval of random posts to file
                 resp = extract_posts_for_interval(start_date, end_date, posts_per_block, timestamp, "", params)
-                total_time += resp[0]
-                ok_docs += resp[1]
+                total_time += resp["elapsed_time"]
+                ok_docs += resp["ok_docs"]
 
                 # Reset
                 current_block_size = 0
@@ -423,5 +425,5 @@ if __name__ == "__fetcher__":
     main(sys.argv[1:])
 
 # extract_posts_from_scales("./excel/one_query.xlsx", 1000)
-obtain_reference_collection("./backups/r_depression_1585651968.jsonl", 1000, 2500, 1577836800, False, None)
+# obtain_reference_collection("./backups/r_depression_1585651968.jsonl", 1000, 5000, 1577836800, False, None)
 # extract_historic_for_subreddit("depression", 1577836800)

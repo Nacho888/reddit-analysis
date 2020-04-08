@@ -11,6 +11,7 @@ import file_manager
 import logging_factory
 #####
 from elasticsearch import Elasticsearch, helpers
+
 #####
 logger_err = logging_factory.get_module_logger("questioner_err", logging.ERROR)
 logger = logging_factory.get_module_logger("questioner", logging.DEBUG)
@@ -88,7 +89,7 @@ def extract_posts_ordered_by_timestamp(generate_file: bool, max_block_size: int,
             if bool(response):
                 if generate_file:
                     for post in response:
-                        file_manager.write_to_file(post["_source"], "./backups", filename)
+                        file_manager.write_to_file(post["_source"], "./backups", filename, "a")
                 # Finally generate the reference collection using the response from ElasticSearch
                 fetcher.obtain_reference_collection("", max_block_size,
                                                     posts_per_block, base_date, response)
@@ -126,7 +127,9 @@ def obtain_posts_per_hour():
     name = "Posts per hour"
     key_name = "Hour"
     body = {"size": 0, "aggs": {
-        name: {"composite": {"size": 24, "sources": [{key_name: {"terms": {"field": "post_hour"}}}]}}}}
+        name: {"composite": {"size": 24, "sources": [{key_name: {"terms": {"field": "post_hour"}}}]}}
+    }
+            }
 
     response = perform_search("depression_index", "localhost", "9200", body, "Posts per hour")
     resp_dict = {}
@@ -134,6 +137,18 @@ def obtain_posts_per_hour():
         resp_dict[key["key"][key_name]] = key["doc_count"]
 
     print(resp_dict)
+
+
+def get_term_vector_for_id(host: str, port: str, _id: str):
+    es = Elasticsearch([{"host": host, "port": port}])
+    response = es.termvectors(index="r_depression", doc_type="reddit_doc", body={"term_statistics": True,
+                                                                                 "fields": ["selftext"],
+                                                                                 "filter": {"max_num_terms": 10,
+                                                                                            "min_term_freq": 1,
+                                                                                            "min_doc_freq": 1
+                                                                                            }
+                                                                                 }, id=_id)
+    return response
 
 
 def main(argv):
@@ -152,9 +167,12 @@ def main(argv):
         sys.exit(1)
 
 
-if __name__ == "__fetcher__":
+if __name__ == "__questioner__":
     main(sys.argv[1:])
 
+# resp = perform_search("r_depression", "localhost", "9200", {"size": 1000, "query": {"match_all": {}}}, "Match all")
+# for post in resp["hits"]["hits"]:
+#     print(post)
 # obtain_posts_per_hour()
 # extract_queries(".", "queries.json")
 # extract_posts_ordered_by_timestamp(False, 1000, 1000, 1577836800)

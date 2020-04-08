@@ -1,3 +1,4 @@
+import json
 import sys
 import uuid
 import logging
@@ -12,22 +13,23 @@ from elasticsearch import Elasticsearch, helpers
 logger_err = logging_factory.get_module_logger("indexer_err", logging.ERROR)
 logger = logging_factory.get_module_logger("indexer", logging.DEBUG)
 
+global_id = 1
 
-def setup_for_index(data: list, _index: str, _type: str, _id: Optional[int] = None):
+
+def setup_for_index(data: list, _index: str, _type: str):
     """
     Function to add the necessary fields to index with ElasticSearch
 
     :param data: list - the data to modify and set ready to index
     :param _index: str - the index name
     :param _type: str - the document type
-    :param _id: int/None - the id to assign to the document or if None an automatically generated uuid4
     :return yielded document with all the required data
     """
 
     for doc in data:
         yield {
             "_index": _index,
-            "_id": uuid.uuid4() if _id is None else _id,
+            "_id": uuid.uuid4(),
             "_type": _type,
             "_source": doc
         }
@@ -57,8 +59,9 @@ def index_data(data: list, host: str, port: str, _index: str, _type: str):
 
         # Load data
         try:
-            resp = helpers.bulk(es, setup_for_index(data, _index, _type, None), index=_index, doc_type=_type)
-        except helpers.BulkIndexError:
+            resp = helpers.bulk(es, setup_for_index(data, _index, _type), index=_index, doc_type=_type)
+        except helpers.BulkIndexError as e:
+            print(e)
             logger_err.error("helpers.bulk() - ERROR\n")
             pass
     except (elasticsearch.ConnectionTimeout, elasticsearch.ConnectionError):
@@ -82,21 +85,25 @@ def index_from_file(path: str, host: str, port: str, _index: str, _type: str, li
 
     lines = []
     ok_docs = 0
+    count = 0
 
     logger.debug("Parameters to establish connection with ElasticSearch -> (host: '{}', port: '{}')".format(host, port))
 
     with open(os.path.join(path), "r") as readfile:
         for line in readfile:
-            if len(lines) == limit:
-                ok_docs += index_data(lines, host, port, _index, _type)
-                lines = []
+            count += 1
+            if len(lines) < limit - 1:  # - 1 because we are going to append one line in the 'else' part
+                lines.append(line)
             else:
                 lines.append(line)
+                ok_docs += index_data(lines, host, port, _index, _type)
+                lines = []
+
         # There's remaining documents
         if len(lines) > 0:
             ok_docs += index_data(lines, host, port, _index, _type)
 
-    logger.debug("{} documents indexed successfully".format(ok_docs))
+    logger.debug("{} documents indexed successfully (expected {})".format(ok_docs, count))
 
 
 def main(argv):
@@ -120,4 +127,5 @@ def main(argv):
 if __name__ == "__indexer__":
     main(sys.argv[1:])
 
-# index_from_file("", "localhost", "9200", "depression_index-1", "reddit_doc", 5000)
+
+# index_from_file("./backups/", "localhost", "9200", "r_depression_train", "reddit_doc", 1000)
