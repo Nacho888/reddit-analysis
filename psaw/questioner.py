@@ -1,5 +1,4 @@
 import sys
-
 import elasticsearch
 import json
 import os
@@ -11,7 +10,6 @@ import file_manager
 import logging_factory
 #####
 from elasticsearch import Elasticsearch, helpers
-
 #####
 logger_err = logging_factory.get_module_logger("questioner_err", logging.ERROR)
 logger = logging_factory.get_module_logger("questioner", logging.DEBUG)

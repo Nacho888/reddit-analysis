@@ -34,15 +34,16 @@ def write_to_file(data: dict, save_path: str, filename: str, mode: str):
         return False
 
 
-def count_lines_file(path: str):
+def count_lines_file(path: str, filename: str):
     """
     Function that returns the number of lines of a file given its path
 
     :param path: str - the path to the file
+    :param filename: str - the name of the file
     :return: int - the number of lines of the file
     """
 
-    with open(path) as f:
+    with open(os.path.join(path, filename)) as f:
         for i, l in enumerate(f):
             pass
     return i + 1
@@ -63,3 +64,47 @@ def sort_file(save_path: str, filename: str):
     with open(os.path.join(save_path, filename), "a") as file:
         for line in words:
             file.write(line)
+
+
+def files_in_path(path: str):
+    return os.listdir(path)
+
+
+def populate_dataset(source_path, target_path, target_name, skip, size):
+    count = 0
+    skipped = 0
+    with open(source_path, "r") as source:
+        for line in source:
+            if skipped != skip:
+                skipped += 1
+            else:
+                if count < size:
+                    response = write_to_file(json.loads(line), target_path, target_name, "a")
+                    count += 1 if response else 0
+                else:
+                    break
+
+
+def vector_feature_from_dataset(dataset_path, dataset_name, feature, size):
+    result = []
+    with open(os.path.join(dataset_path, dataset_name), "r") as dataset:
+        for line in dataset:
+            data = json.loads(line)
+            result.append(data[feature])
+    return result
+
+
+def check_dataset_present(train_size):
+    base = "datasets/"
+    count = 0
+    for directory in os.listdir(base):
+        for file in os.listdir(os.path.join(base, directory)):
+            if str(train_size) in file:
+                if "training" in file:
+                    count += 1
+                if "testing" in file:
+                    count += 1
+    return True if count == 4 else False
+
+
+check_dataset_present(10000)

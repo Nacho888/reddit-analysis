@@ -7,6 +7,37 @@ logger = logging_factory.get_module_logger("excel_reader", logging.DEBUG)
 logger_err = logging_factory.get_module_logger("excel_reader_err", logging.ERROR)
 
 
+def get_queries(path: str, start_row: int, queries_column: int):
+    """
+    Function that given the path to the excel file, and the corresponding positional parameters returns all the
+    queries associated to the scales
+
+    :param path: str - the path where the excel spreadsheet is located
+    :param start_row: int - row number where the first query is located
+    :param queries_column: int - column number where the queries are located
+    :return: a list containing all the queries
+    """
+
+    # Workbook object is created
+    spreadsheet = pd.read_excel(path)
+    m_row = len(spreadsheet.index)
+
+    queries = []
+
+    for i in range(start_row - 2, m_row):
+        query = spreadsheet.iloc[i, queries_column - 1]
+        if not pd.isna(query):
+            qs = []
+            if "," in query:  # Multiple queries in the same cell
+                qs = query.split(",")
+            if len(qs) > 0:
+                for q in qs:
+                    queries.append(q.strip())
+            else:
+                queries.append(query.strip())
+    return queries
+
+
 def get_queries_and_scales(path: str, start_row: int, scales_column: int, queries_column: int, related_column: int):
     """
     Function to obtain the scales' names and queries
@@ -180,3 +211,4 @@ def code_present(spreadsheet, code: str, start_row: int, related_column: int):
 
 
 # queries_and_scales = get_queries_and_scales("./excel/scales.xlsx", 5, 2, 4, 5)
+# get_queries("./excel/scales.xlsx", 5, 4)
