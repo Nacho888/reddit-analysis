@@ -288,122 +288,122 @@ def write_results_to_excel(spreadsheet_name, data):
     df.to_excel(spreadsheet_name)
 
 
-# Populate datasets
-print("\tPopulating datasets...")
-train_size = 10000
-proportion = 0.25
-if file_manager.check_dataset_present(train_size):
-    populate_datasets(train_size, proportion)
-test_size = int(10000 * proportion)
-
-################
-### Training ###
-################
-
-# Load dataset files
-print("\tLoading training datasets...")
-# Depression (train)
-train_data_depression = pd.DataFrame(
-    pd.read_json("datasets/training/training_depression_{}.jsonl".format(train_size), lines=True))
-train_data_depression["depression_related"] = [1] * len(train_data_depression.index)  # Dep. identifier: true
-dep_size = len(train_data_depression.index)
-
-# Non-depression (train)
-train_data_control = pd.DataFrame(
-    pd.read_json("datasets/training/training_control_{}.jsonl".format(train_size), lines=True))
-train_data_control["depression_related"] = [0] * len(train_data_control.index)  # Dep. identifier: false
-non_dep_size = len(train_data_control.index)
-
-# Join both data-frames
-train = train_data_depression.append(train_data_control, ignore_index=True)
-
-# Pronouns proportion
-# train["pp1"] = train["text"].apply(lambda x: get_pronoun_proportion(word_tokenize(x), "pp1"))
-# train["pp2"] = train["text"].apply(lambda x: get_pronoun_proportion(word_tokenize(x), "pp2"))
-# train["pp3"] = train["text"].apply(lambda x: get_pronoun_proportion(word_tokenize(x), "pp3"))
-# Post times
-train["hour"] = train["created_utc"].apply(lambda x: date_utils.extract_field_from_timestamp(x, "hour"))
-train["month"] = train["created_utc"].apply(lambda x: date_utils.extract_field_from_timestamp(x, "month"))
-
-# Initialize training label matrix
-total_size = dep_size + non_dep_size
-training_labels = np.zeros(total_size)
-training_labels[0:dep_size] = 1
-
-### TEXT ###
-# # Extract text as list and create the dictionary
-# print("\tCreating the vocabulary...")
-# posts = train["text"].tolist()
-# global vocabulary
-# vocabulary = initialize_vocabulary(posts)
+# # Populate datasets
+# print("\tPopulating datasets...")
+# train_size = 10000
+# proportion = 0.25
+# if file_manager.check_dataset_present(train_size):
+#     populate_datasets(train_size, proportion)
+# test_size = int(10000 * proportion)
 #
-# # Compute df
-# df_dict = compute_df(posts)
+# ################
+# ### Training ###
+# ################
 #
-# # Compute training matrix
-# training_matrix = evaluate_text("train", posts)
-
-### HOURS ###
-training_matrix = np.reshape(train["hour"].tolist(), (-1, 1))
-# knn_model = KNeighborsClassifier(n_neighbors=3)
-# knn_model.fit(training_matrix, training_labels)
-svc_model = svm.SVC()
-svc_model.fit(training_matrix, training_labels)
-
-# Train the model
-# print("\tTraining Bayes Model...")
-# bayes_model = MultinomialNB()
-# bayes_model.fit(training_matrix, training_labels)
-
-###############
-### Testing ###
-###############
-
-# Load dataset files
-print("\tLoading testing datasets...")
-# Depression (test)
-test_data_depression = pd.DataFrame(
-    pd.read_json("datasets/testing/testing_depression_{}.jsonl".format(test_size), lines=True))
-test_data_depression["depression_related"] = [1] * len(test_data_depression.index)  # Dep. identifier: true
-dep_size = len(test_data_depression.index)
-
-# Non-depression (test)
-test_data_control = pd.DataFrame(
-    pd.read_json("datasets/testing/testing_control_{}.jsonl".format(test_size), lines=True))
-test_data_control["depression_related"] = [0] * len(test_data_control.index)  # Dep. identifier: false
-non_dep_size = len(test_data_control.index)
-
-# Join both data-frames
-test = test_data_depression.append(test_data_control, ignore_index=True)
-
-# Pronouns proportion
-# test["pp1"] = test["text"].apply(lambda x: get_pronoun_proportion(word_tokenize(x), "pp1"))
-# test["pp2"] = test["text"].apply(lambda x: get_pronoun_proportion(word_tokenize(x), "pp2"))
-# test["pp3"] = test["text"].apply(lambda x: get_pronoun_proportion(word_tokenize(x), "pp3"))
-# Post times
-test["hour"] = test["created_utc"].apply(lambda x: date_utils.extract_field_from_timestamp(x, "hour"))
-test["month"] = test["created_utc"].apply(lambda x: date_utils.extract_field_from_timestamp(x, "month"))
-
-# Initialize testing label matrix
-total_size = dep_size + non_dep_size
-testing_labels = np.zeros(total_size)
-testing_labels[0:dep_size] = 1
-
-# Compute testing matrix
-# testing_matrix = evaluate_text("test")
-testing_matrix = np.reshape(test["hour"].tolist(), (-1, 1))
-
-# Prediction for the model
-print("\tConfusion matrix for the testing data")
-prediction = svc_model.predict(testing_matrix)
-print(confusion_matrix(testing_labels, prediction))
-
-result_dict = {
-    "Type": types,
-    "Model": models,
-    "Size training": train_sizes,
-    "Size testing": test_sizes,
-    "TP": tps,
-    "FP": fps,
-    "FN": fns,
-    "TN": tns}
+# # Load dataset files
+# print("\tLoading training datasets...")
+# # Depression (train)
+# train_data_depression = pd.DataFrame(
+#     pd.read_json("datasets/training/training_depression_{}.jsonl".format(train_size), lines=True))
+# train_data_depression["depression_related"] = [1] * len(train_data_depression.index)  # Dep. identifier: true
+# dep_size = len(train_data_depression.index)
+#
+# # Non-depression (train)
+# train_data_control = pd.DataFrame(
+#     pd.read_json("datasets/training/training_control_{}.jsonl".format(train_size), lines=True))
+# train_data_control["depression_related"] = [0] * len(train_data_control.index)  # Dep. identifier: false
+# non_dep_size = len(train_data_control.index)
+#
+# # Join both data-frames
+# train = train_data_depression.append(train_data_control, ignore_index=True)
+#
+# # Pronouns proportion
+# # train["pp1"] = train["text"].apply(lambda x: get_pronoun_proportion(word_tokenize(x), "pp1"))
+# # train["pp2"] = train["text"].apply(lambda x: get_pronoun_proportion(word_tokenize(x), "pp2"))
+# # train["pp3"] = train["text"].apply(lambda x: get_pronoun_proportion(word_tokenize(x), "pp3"))
+# # Post times
+# train["hour"] = train["created_utc"].apply(lambda x: date_utils.extract_field_from_timestamp(x, "hour"))
+# train["month"] = train["created_utc"].apply(lambda x: date_utils.extract_field_from_timestamp(x, "month"))
+#
+# # Initialize training label matrix
+# total_size = dep_size + non_dep_size
+# training_labels = np.zeros(total_size)
+# training_labels[0:dep_size] = 1
+#
+# ### TEXT ###
+# # # Extract text as list and create the dictionary
+# # print("\tCreating the vocabulary...")
+# # posts = train["text"].tolist()
+# # global vocabulary
+# # vocabulary = initialize_vocabulary(posts)
+# #
+# # # Compute df
+# # df_dict = compute_df(posts)
+# #
+# # # Compute training matrix
+# # training_matrix = evaluate_text("train", posts)
+#
+# ### HOURS ###
+# training_matrix = np.reshape(train["hour"].tolist(), (-1, 1))
+# # knn_model = KNeighborsClassifier(n_neighbors=3)
+# # knn_model.fit(training_matrix, training_labels)
+# svc_model = svm.SVC()
+# svc_model.fit(training_matrix, training_labels)
+#
+# # Train the model
+# # print("\tTraining Bayes Model...")
+# # bayes_model = MultinomialNB()
+# # bayes_model.fit(training_matrix, training_labels)
+#
+# ###############
+# ### Testing ###
+# ###############
+#
+# # Load dataset files
+# print("\tLoading testing datasets...")
+# # Depression (test)
+# test_data_depression = pd.DataFrame(
+#     pd.read_json("datasets/testing/testing_depression_{}.jsonl".format(test_size), lines=True))
+# test_data_depression["depression_related"] = [1] * len(test_data_depression.index)  # Dep. identifier: true
+# dep_size = len(test_data_depression.index)
+#
+# # Non-depression (test)
+# test_data_control = pd.DataFrame(
+#     pd.read_json("datasets/testing/testing_control_{}.jsonl".format(test_size), lines=True))
+# test_data_control["depression_related"] = [0] * len(test_data_control.index)  # Dep. identifier: false
+# non_dep_size = len(test_data_control.index)
+#
+# # Join both data-frames
+# test = test_data_depression.append(test_data_control, ignore_index=True)
+#
+# # Pronouns proportion
+# # test["pp1"] = test["text"].apply(lambda x: get_pronoun_proportion(word_tokenize(x), "pp1"))
+# # test["pp2"] = test["text"].apply(lambda x: get_pronoun_proportion(word_tokenize(x), "pp2"))
+# # test["pp3"] = test["text"].apply(lambda x: get_pronoun_proportion(word_tokenize(x), "pp3"))
+# # Post times
+# test["hour"] = test["created_utc"].apply(lambda x: date_utils.extract_field_from_timestamp(x, "hour"))
+# test["month"] = test["created_utc"].apply(lambda x: date_utils.extract_field_from_timestamp(x, "month"))
+#
+# # Initialize testing label matrix
+# total_size = dep_size + non_dep_size
+# testing_labels = np.zeros(total_size)
+# testing_labels[0:dep_size] = 1
+#
+# # Compute testing matrix
+# # testing_matrix = evaluate_text("test")
+# testing_matrix = np.reshape(test["hour"].tolist(), (-1, 1))
+#
+# # Prediction for the model
+# print("\tConfusion matrix for the testing data")
+# prediction = svc_model.predict(testing_matrix)
+# print(confusion_matrix(testing_labels, prediction))
+#
+# result_dict = {
+#     "Type": types,
+#     "Model": models,
+#     "Size training": train_sizes,
+#     "Size testing": test_sizes,
+#     "TP": tps,
+#     "FP": fps,
+#     "FN": fns,
+#     "TN": tns}
