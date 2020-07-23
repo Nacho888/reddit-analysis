@@ -1,4 +1,5 @@
 import time
+import pytz
 import logging
 #####
 import logging_factory
@@ -9,74 +10,41 @@ from datetime import datetime
 logger_err = logging_factory.get_module_logger("date_utils_err", logging.ERROR)
 logger = logging_factory.get_module_logger("date_utils", logging.DEBUG)
 
+# Time format for ISO-8601
+time_format = "%Y-%m-%dT%H:%M:%S"
 
-def get_iso_date_str(timestamp: int, utc_offset: Optional[str] = None):
+
+def convert_to_iso_date_str(timestamp: int):
     """
-    Function that returns a formatted ISO-8601 timestamp given the milliseconds epoch value and the utc_offset
+    Function that returns a formatted ISO-8601 timestamp given the milliseconds epoch value
 
     :param timestamp: int - the timestamp in epoch milliseconds
-    :param utc_offset: str/None - the utc code (default GMT)
-    :return: timestamp: str - formatted timestamp
+    :return: str - formatted timestamp
     """
 
-    # Standard time format
-    time_format = "%Y-%m-%d %H:%M:%S"
-
-    timestamp = datetime.utcfromtimestamp(timestamp).strftime(time_format)
-
-    if utc_offset is not None:
-        date = datetime.strptime(timestamp + "+{}".format(utc_offset), time_format + "%z")
-    else:
-        date = datetime.strptime(timestamp + "+0000", time_format + "%z")
-
-    date = date.isoformat()
-
-    return date
+    return datetime.utcfromtimestamp(timestamp).strftime(time_format)
 
 
-def get_numeric_timestamp_from_iso(timestamp: int):
+def convert_from_iso_date_str(timestamp: str):
     """
     Function that returns the milliseconds epoch value given a formatted ISO-8601 timestamp
 
     :param timestamp: int - the ISO-8601 formatted timestamp
-    :return: timestamp: int - epoch milliseconds value
+    :return: int - epoch milliseconds value
     """
 
-    # ISO-8601 format
-    time_format = "%Y-%m-%dT%H:%M:%S%z"
-
-    date = datetime.strptime(timestamp, time_format).timestamp()
-
-    return int(date)
+    return int(datetime.strptime(timestamp, time_format).timestamp())
 
 
-def get_current_time_iso_str(utc_offset: str):
+def get_current_date(is_str: bool):
     """
-    Function that returns the current time
+    Function that returns the current date as an int or as a formatted string
 
-    :param utc_offset: str - the utc code
-    :return: str - the current ISO-8061 formatted date
-    """
-    return get_iso_date_str(int(time.time()), utc_offset)
-
-
-def get_current_timestamp(utc_offset: str):
-    """
-    Function that returns the current timestamp
-
-    :param utc_offset: str - the utc code
-    :return: int - the current timestamp
+    :param is_str: bool - true for the date to be returned as a string, false otherwise
+    :return: int/str - the current date
     """
 
-    # Time format for UTC
-    time_format = "%Y-%m-%d %H:%M:%S"
-
-    timestamp = datetime.utcfromtimestamp(int(time.time())).strftime(time_format)
-
-    date = datetime.strptime(timestamp + "+" + utc_offset, time_format + "%z")
-    timestamp = date.timestamp()
-
-    return int(timestamp)
+    return datetime.fromtimestamp(time.time()).strftime(time_format) if is_str else int(time.time())
 
 
 def extract_field_from_timestamp(date, field: str):
@@ -85,17 +53,17 @@ def extract_field_from_timestamp(date, field: str):
 
     :param date: int/str - the date in epoch millis int or in iso 8601 format string
     :param field: str - the field to extract (hour/month)
-    :return hour: int - the hour associated to the post
+    :return hour: int - the hour/month associated to the post
     """
 
-    if field == "year" or field == "hour":
+    if field == "hour" or field == "month":
         try:
             d = None
             if isinstance(date, str):
-                d = datetime.strptime(date, '%Y-%m-%dT%H:%M:%S%z')
+                d = datetime.strptime(date, time_format)
             elif isinstance(date, int):
-                d = get_iso_date_str(date)
-                d = datetime.strptime(d, '%Y-%m-%dT%H:%M:%S%z')
+                d = convert_to_iso_date_str(date)
+                d = datetime.strptime(d, time_format)
             else:
                 logger_err.error("Not compatible format of date")
             if d is not None:
@@ -107,3 +75,4 @@ def extract_field_from_timestamp(date, field: str):
             logger_err.error("Error with date format", e)
     else:
         logger_err.error("Invalid field name: {}".format(field))
+

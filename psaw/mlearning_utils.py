@@ -33,7 +33,7 @@ def pre_process(text: str):
         return processed_text
 
 
-def get_pronoun_proportion(text: list, person_key: str):
+def get_pronoun_proportion(text: list):
     first_person = ["i", "me", "my", "mine", "myself"]
     second_person = ["you", "your", "yours", "yourself"]
     third_person = ["he", "him", "his", "himself", "she", "her", "hers", "herself"]
@@ -49,9 +49,10 @@ def get_pronoun_proportion(text: list, person_key: str):
             pronouns["pp3"] += 1
 
     total_pronouns = sum(pronouns.values())
-    result = {"pp1": round(pronouns["pp1"] / total_pronouns, 2) if total_pronouns != 0 else 0,
-              "pp2": round(pronouns["pp2"] / total_pronouns, 2) if total_pronouns != 0 else 0,
-              "pp3": round(pronouns["pp3"] / total_pronouns, 2) if total_pronouns != 0 else 0
-              }
+    result = {
+        "pp1": round(pronouns["pp1"] / total_pronouns, 2) if total_pronouns != 0 else 0,
+        "pp2": round(pronouns["pp2"] / total_pronouns, 2) if total_pronouns != 0 else 0,
+        "pp3": round(pronouns["pp3"] / total_pronouns, 2) if total_pronouns != 0 else 0
+        }
 
-    return result[person_key]
+    return result

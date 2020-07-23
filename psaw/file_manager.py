@@ -70,6 +70,13 @@ def files_in_path(path: str):
     return os.listdir(path)
 
 
+def remove_file(path: str):
+    try:
+        os.remove(path)
+    except OSError:
+        logger_err.error("File cannot be removed")
+
+
 def populate_dataset(source_path, target_path, target_name, skip, size):
     count = 0
     skipped = 0
@@ -107,4 +114,4 @@ def check_dataset_present(train_size):
     return True if count == 4 else False
 
 
-check_dataset_present(10000)
+# check_dataset_present(10000)
