@@ -3,6 +3,7 @@ import os
 import logging
 #####
 import logging_factory
+
 #####
 logger_err = logging_factory.get_module_logger("file_manager_err", logging.ERROR)
 logger = logging_factory.get_module_logger("file_manager", logging.DEBUG)
@@ -77,6 +78,19 @@ def remove_file(path: str):
         logger_err.error("File cannot be removed")
 
 
+def clear_path(path: str):
+    import shutil
+
+    if os.path.exists(path):
+        shutil.rmtree(path)
+
+
+def create_subdir(base: str, sub_dir: str):
+    if not os.path.exists(base):
+        os.mkdir(base)
+    os.mkdir(os.path.join(base, sub_dir))
+
+
 def populate_dataset(source_path, target_path, target_name, skip, size):
     count = 0
     skipped = 0
@@ -114,4 +128,22 @@ def check_dataset_present(train_size):
     return True if count == 4 else False
 
 
+def cut_datasets(path: str, size_training: int, split_prop: float):
+    for subdir in os.listdir(path):
+        for file in os.listdir(os.path.join(path, subdir)):
+            filename = file.split(".")[0] + "_s." + file.split(".")[1]
+            with open(os.path.join(path, subdir + "\\" + file), "r") as input_file:
+                is_train = "training" in file
+                with open(os.path.join(path, subdir + "\\" + filename), "a") as outfile:
+                    written = 0
+                    for line in input_file:
+                        if (written >= size_training and is_train) or \
+                                (written >= size_training * (1 - split_prop) and not is_train):
+                            break
+                        else:
+                            outfile.write(line)
+                            written += 1
+
+
+# cut_datasets("datasets", 10000, 0.75)
 # check_dataset_present(10000)

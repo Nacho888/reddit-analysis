@@ -138,3 +138,6 @@ psaw/backups/
 # Scripts for small tests
 psaw/test.py
 test.py
+
+# JSON datasets folder
+psaw/datasets

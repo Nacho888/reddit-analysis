@@ -1,5 +1,6 @@
 import pandas as pd
 from nltk import word_tokenize, PorterStemmer
+from pandas import DataFrame
 
 
 def pre_process(text: str):
@@ -53,6 +54,6 @@ def get_pronoun_proportion(text: list):
         "pp1": round(pronouns["pp1"] / total_pronouns, 2) if total_pronouns != 0 else 0,
         "pp2": round(pronouns["pp2"] / total_pronouns, 2) if total_pronouns != 0 else 0,
         "pp3": round(pronouns["pp3"] / total_pronouns, 2) if total_pronouns != 0 else 0
-        }
+    }
 
     return result
