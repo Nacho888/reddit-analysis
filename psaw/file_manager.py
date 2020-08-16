@@ -79,10 +79,8 @@ def remove_file(path: str):
 
 
 def clear_path(path: str):
-    import shutil
-
-    if os.path.exists(path):
-        shutil.rmtree(path)
+    for file in os.listdir(path):
+        os.remove(os.path.join(path, file))
 
 
 def create_subdir(base: str, sub_dir: str):

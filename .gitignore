@@ -141,3 +141,6 @@ test.py
 
 # JSON datasets folder
 psaw/datasets
+
+# Binary files and matrices
+psaw/ipynb/vectorizers
