@@ -130,17 +130,12 @@ dmypy.json
 
 # Jetbrains IDE's
 .idea/
-psaw/.idea/
 
 # JSON backups folder
-psaw/backups/
-
-# Scripts for small tests
-psaw/test.py
-test.py
+backups/
 
 # JSON datasets folder
-psaw/datasets
+datasets/
 
 # Binary files and matrices
-psaw/machinelearning/vectorizers
+machinelearning/vectorizers

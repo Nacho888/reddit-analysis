@@ -361,44 +361,34 @@ def merge_backups(file1: str, file2: str):
     return True
 
 
-def obtain_authors_sample(subreddit_col_path: str, sample_size: int):
+def obtain_authors_sample(authors_info_path: str, sample_size: int):
     import random
     import math
-    subr_authors = []
+    import pandas as pd
+    authors = []
 
-    if not os.path.isfile("./data/subr_authors.txt"):
-        with open(os.path.join("./backups/", subreddit_col_path), "r") as input_file:
-            for post in input_file:
-                try:
-                    post = json.loads(post)
-                    author = post["author"]
-                    if author not in subr_authors:
-                        subr_authors.append(author)
-                except KeyError:
-                    logger_err.error("No author key found in post with id: {}".format(post["id"]))
-
-        with open("./data/subr_authors.txt", "w+") as output:
-            for auth in subr_authors:
-                output.write(str(auth) + "\n")
-    else:
-        with open("./data/subr_authors.txt", "r") as input_file:
-            for auth in input_file:
-                subr_authors.append(auth)
-    logger.debug("Total amount of authors in subreddit file: {}".format(len(subr_authors)))
+    with open(authors_info_path, "r") as input_file:
+        for auth in input_file:
+            authors.append(json.loads(auth))
+    logger.debug("Total amount of authors in subreddit file: {}".format(len(authors)))
 
     selected = []
-    k = len(subr_authors)/sample_size
+    k = len(authors)/sample_size
     starting_point = random.random() * k
-    while starting_point <= len(subr_authors):
+    while starting_point <= len(authors):
         index = math.ceil(starting_point) - 1
-        selected.append(subr_authors[index])
+        selected.append(authors[index])
         starting_point += k
 
-    with open("./data/subr_authors_selected.txt", "w+") as output:
+    with open("./data/authors_selected.jsonl", "w+") as output:
         for auth in selected:
-            output.write(str(auth))
+            output.write(json.dumps(auth))
+            output.write("\n")
+
+    df = pd.DataFrame(selected)
+    df.to_excel("./data/authors_selected.xlsx")
 
 
 # obtain_reference_collection("./backups/r_depression_base.jsonl", 100, 100, 1577836800, False, "depression", None)
 # extract_historic_for_subreddit("depression", 1577836800)
-# obtain_authors_sample("r_depression_base.jsonl", 10000)
+obtain_authors_sample("./data/authors_info_backup.jsonl", 10000)
