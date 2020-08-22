@@ -1,176 +1,47 @@
-import sys
-import elasticsearch
 import json
-import os
 import logging
 #####
-import date_utils
-import fetcher
-import file_manager
 import logging_factory
 #####
-from elasticsearch import Elasticsearch, helpers
+from elasticsearch import Elasticsearch
+from elasticsearch_dsl import Search
 #####
 logger_err = logging_factory.get_module_logger("questioner_err", logging.ERROR)
 logger = logging_factory.get_module_logger("questioner", logging.DEBUG)
 
 
-def perform_search(index: str, host: str, port: str, body: dict, description: str):
-    """
-    Function that performs a query against ElasticSearch
+def extract_authors_info(authors_path: str):
+    es = Elasticsearch(hosts=[{"host": "localhost", "port": 9200}])
 
-    :param index: str - index to perform the query against to
-    :param host: str - host to perform the query against to
-    :param port: str - port to perform the query against to
-    :param body: dict - the body of the query
-    :param description: str - description of the query performed
-    :return: response: dict - dictionary containing the response (empty if errored)
-    """
+    authors = []
+    result = []
+    with open(authors_path, "r") as input_file:
+        for author in input_file:
+            authors.append(author.replace("\n", ""))
+        print("Authors loaded ({})".format(len(authors)))
+        n_chunks = 10
+        processed = 1
+        for chunk in [authors[round(len(authors) / n_chunks * i):round(len(authors) / n_chunks * (i + 1))] for i in
+                      range(n_chunks)]:
+            s = Search(using=es, index="reddit_users")
+            s = s.filter("terms", username=chunk)
+            for hit in s.scan():
+                result.append({"acc_id": hit.acc_id,
+                               "username": hit.username,
+                               "created": hit.created,
+                               "updated": hit.updated,
+                               "comment_karma": hit.comment_karma,
+                               "link_karma": hit.link_karma})
+            print("Chunk {}/{} processed".format(processed, n_chunks))
+            processed += 1
+    print("Information successfully found of {} authors".format(len(result)))
 
-    body = json.dumps(body)
-    response = {}
-    try:
-        es = Elasticsearch([{"host": host, "port": port}])
-        try:
-            response = es.search(index=index, body=body)
-        except (elasticsearch.NotFoundError, elasticsearch.RequestError):
-            logger_err.error("Error when performing the query against ElasticSearch - {}".format(description))
-    except (elasticsearch.ConnectionTimeout, elasticsearch.ConnectionError):
-        logger_err.error("ElasticSearch client problem (check if open)")
-        pass
+    result = sorted(result, key=lambda k: int(k["acc_id"]))
 
-    return response if bool(response) else {}
-
-
-def extract_queries(path: str, filename: str):
-    """
-    Function that extracts the queries from a file (with the required ElasticSearch .json format) given a path and
-    prints the response if OK
-
-    :param path: str - the path to the queries folder
-    :param filename: str - the name of the file
-    """
-
-    with open(os.path.join(path, filename), "r") as file:
-        data = json.load(file)
-        for i, query in enumerate(data):
-            if i != 0:
-                response = perform_search("depression_index", "localhost", "9200", query, data[0]["descriptions"][i])
-                if bool(response):
-                    print(response)
-                else:
-                    logger_err.error("No results found for query {} - {}".format(i, data[0]["descriptions"][i]))
+    with open("./data/authors_info_backup.jsonl", "w") as output:
+        for line in result:
+            output.write(json.dumps(line))
+            output.write("\n")
 
 
-def extract_posts_ordered_by_timestamp(generate_file: bool, max_block_size: int, posts_per_block: int, base_date: int):
-    """
-    Function that writes to a file all the posts in ElasticSearch (sorted by descending date)
-
-    :param generate_file: bool - True if you want to merge all docs in a single document ordered by date, False if you
-    just want to generate the reference collection using ElasticSearch
-    :param max_block_size: int - number of posts per date interval
-    :param posts_per_block: int - number of posts to obtain per interval
-    :param base_date: int - the limit timestamp (posts must be older that this)
-    """
-
-    # To put the timestamp in the filename
-    timestamp = date_utils.get_current_timestamp("0100")
-    filename = "all_queries_{}.jsonl".format(timestamp)
-
-    body = {"query": {"match_all": {}}, "sort": [{"created_utc": {"order": "desc"}}]}
-    try:
-        es = Elasticsearch([{"host": "localhost", "port": "9200"}], timeout=30)
-        try:
-            # Use scan to return a generator
-            # preserve_order = True -> may impact performance but we need to preserve the date order of the query
-            response = helpers.scan(es, query=body, preserve_order=True, index="depression_index-2")
-            if bool(response):
-                if generate_file:
-                    for post in response:
-                        file_manager.write_to_file(post["_source"], "./backups", filename, "a")
-                # Finally generate the reference collection using the response from ElasticSearch
-                fetcher.obtain_reference_collection("", max_block_size,
-                                                    posts_per_block, base_date, response)
-        except (elasticsearch.NotFoundError, elasticsearch.RequestError):
-            logger_err.error("Error when performing the query against ElasticSearch - {}".format("Posts ordered"
-                                                                                                 "by timestamp"))
-    except (elasticsearch.ConnectionTimeout, elasticsearch.ConnectionError) as e:
-        logger_err.error("ElasticSearch client problem (check if open)")
-        logger_err.error(e)
-        pass
-
-
-def obtain_posts_per_hour_interval():
-    """
-    Function that prints all the hour intervals [0-23] with their document count
-    """
-
-    for i in range(24):
-        to = i + 1 if i < 23 else 0
-
-        body = {"size": 0,
-                "aggs": {"Hour ranges": {"range": {"field": "post_hour", "ranges": [{"from": i, "to": to}]}}}
-                }
-
-        response = perform_search("depression_index", "localhost", "9200", body,
-                                  "Posts from {} hours to {} hours".format(i, to))
-        print(response)
-
-
-def obtain_posts_per_hour():
-    """
-    Function that print all the hours [0-23] (not intervals) with their corresponding number of posts
-    """
-
-    name = "Posts per hour"
-    key_name = "Hour"
-    body = {"size": 0, "aggs": {
-        name: {"composite": {"size": 24, "sources": [{key_name: {"terms": {"field": "post_hour"}}}]}}
-    }
-            }
-
-    response = perform_search("depression_index", "localhost", "9200", body, "Posts per hour")
-    resp_dict = {}
-    for key in response["aggregations"][name]["buckets"]:
-        resp_dict[key["key"][key_name]] = key["doc_count"]
-
-    print(resp_dict)
-
-
-def get_term_vector_for_id(host: str, port: str, _id: str):
-    es = Elasticsearch([{"host": host, "port": port}])
-    response = es.termvectors(index="r_depression", doc_type="reddit_doc", body={"term_statistics": True,
-                                                                                 "fields": ["selftext"],
-                                                                                 "filter": {"max_num_terms": 10,
-                                                                                            "min_term_freq": 1,
-                                                                                            "min_doc_freq": 1
-                                                                                            }
-                                                                                 }, id=_id)
-    return response
-
-
-def main(argv):
-    if len(argv) == 4:
-        try:
-            argv[0] = bool(argv[0])
-            argv[1] = int(argv[1])
-            argv[2] = int(argv[2])
-            argv[3] = int(argv[4])
-            extract_posts_ordered_by_timestamp(argv[0], argv[1], argv[2], argv[3])
-        except ValueError:
-            logger_err.error("Invalid type of parameters (expected: <bool> <int> <int> <int>)")
-            sys.exit(1)
-    else:
-        logger_err.error("Invalid amount of parameters (expected: 4)")
-        sys.exit(1)
-
-
-if __name__ == "__questioner__":
-    main(sys.argv[1:])
-
-# resp = perform_search("r_depression", "localhost", "9200", {"size": 1000, "query": {"match_all": {}}}, "Match all")
-# for post in resp["hits"]["hits"]:
-#     print(post)
-# obtain_posts_per_hour()
-# extract_queries(".", "queries.json")
-# extract_posts_ordered_by_timestamp(False, 1000, 1000, 1577836800)
+extract_authors_info("./data/subr_authors.txt")

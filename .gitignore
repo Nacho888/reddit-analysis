@@ -143,4 +143,4 @@ test.py
 psaw/datasets
 
 # Binary files and matrices
-psaw/ipynb/vectorizers
+psaw/machinelearning/vectorizers

@@ -1,39 +1,3 @@
-import pandas as pd
-from nltk import word_tokenize, PorterStemmer
-from pandas import DataFrame
-
-
-def pre_process(text: str):
-    """
-    Function that pre-processes the text:
-        1) Remove line breaks/carriage returns
-        2) Lowercase
-        3) Only alphanumerics are left
-        4) Stem words
-
-    :param text: str - the text to be processed
-    :return: the processed text
-    """
-    import re
-    ps = PorterStemmer()
-
-    if pd.isna(text):  # Missing value in post title or selftext, treated as NaN in Pandas
-        return " "
-    else:
-        processed_text = text.replace("\n", " ").replace("\r", "")  # Remove line breaks/carriage returns
-
-        processed_text = processed_text.lower()  # Lowercase
-
-        pattern = re.compile(r"\W+", re.UNICODE)  # Only alphanumerics are left
-        processed_text = pattern.sub(" ", processed_text)
-
-        words = word_tokenize(processed_text)  # Stem words
-        stemmed_words = [ps.stem(word) for word in words]
-        processed_text = " ".join(stemmed_words)
-
-        return processed_text
-
-
 def get_pronoun_proportion(text: list):
     first_person = ["i", "me", "my", "mine", "myself"]
     second_person = ["you", "your", "yours", "yourself"]

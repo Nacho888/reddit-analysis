@@ -1,6 +1,5 @@
 import logging
 import os
-#####
 
 
 def get_module_logger(mod_name: str, level: int):

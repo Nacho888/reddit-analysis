@@ -1,17 +1,14 @@
 import logging
-import sys
 import time
 import json
 import os
 #####
-import excel_reader
 import file_manager
 import logging_factory
 import date_utils
 #####
 from psaw import PushshiftAPI
 from typing import Optional, Iterable
-
 #####
 logger_err = logging_factory.get_module_logger("fetcher_err", logging.ERROR)
 logger = logging_factory.get_module_logger("fetcher", logging.DEBUG)
@@ -53,122 +50,6 @@ def convert_response(post: dict, full_data: bool):
         updated_post = post.d_
 
     return updated_post
-
-
-def extract_posts_from_scales(excel_path: str, max_posts_per_query: int):
-    """
-    Main function that given an excel spreadsheet with the required format (could be changed in the module
-    excel_reader.py) performs the queries for each scale and extract posts storing them in .jsonl format as backup
-
-    :param  excel_path: str - path to the excel spreadsheet containing the scales and the queries
-    :param  max_posts_per_query: int - maximum number of posts to be extracted with each query
-    (adjust it carefully taking into account the time compromise)
-    """
-
-    # Parameters
-
-    # From row [5 - end]
-    # Column 2 (B) stores scale names, column 4 (D) stores queries
-    queries_and_scales = excel_reader.get_queries_and_scales(excel_path, 5, 2, 4, 5)
-
-    thematic = True
-
-    # API
-    api = PushshiftAPI()
-
-    # Timestamp for the filename
-    query_timestamp = date_utils.get_current_date(False)
-
-    # Time calculation
-    total_elapsed_time = 0
-
-    #####
-
-    # Used to show the progress of completion when making the requests
-    total_queries = sum([len(x) for x in queries_and_scales.values()])
-    current_query = 1
-
-    # Count of correct docs saved
-    ok_docs = 0
-
-    # To store failed queries and directory errors
-    errors = []
-
-    logger.debug("Starting...\n")
-
-    for scale in queries_and_scales:
-        for query_data in queries_and_scales[scale]:
-
-            # Related scales
-            related_codes = query_data[1]
-            related_scales = query_data[2]
-
-            # Actual query
-            query = query_data[0]
-
-            logger.debug("Trying to perform query: '{}'".format(query))
-
-            # Measure elapsed time
-            start = time.time()
-
-            # Base call with 1 post to extract most recent date
-            response = api.search_submissions(q=query, sort_type="created_utc", sort="desc", limit=1)
-            base_dict = convert_response(next(response), False)
-
-            if base_dict:  # We have obtained some result for the query
-                # Posts before the most recent post obtained
-                most_recent_utc = base_dict["created_utc"]
-                response = api.search_submissions(q=query, before=most_recent_utc, limit=max_posts_per_query)
-
-                for resp_post in response:
-                    post = convert_response(resp_post, False)
-                    test = json.dumps(post)
-
-                    if bool(post) and test.startswith('{"id":'):
-                        # Extra fields (only if post is not empty): current timestamp and query data (thematic
-                        # set to True)
-                        post["parameters"] = {"query": query, "scale": scale, "thematic": thematic, "related": {
-                            "codes": related_codes,
-                            "related_scales": related_scales
-                        }
-                                              }
-                        # Change date formats to ISO-8601 strings
-                        post["timestamp"] = date_utils.convert_to_iso_date_str(query_timestamp)
-
-                        #####
-
-                        # File backup
-                        saved = file_manager.write_to_file(post, "./backups/", "all_queries_{}".format(query_timestamp),
-                                                           "a")
-                        if saved:
-                            ok_docs += 1
-            else:
-                # Add error to print it later
-                errors.append("No results found for query: '{}'".format(query))
-
-            end = time.time()
-            elapsed_time = end - start
-            total_elapsed_time += elapsed_time
-
-            # Print stats
-            logger.debug("{} documents successfully saved (expected {})".format(ok_docs, max_posts_per_query))
-            ok_docs = 0
-
-            logger.debug("Query: '{}' - {} of {} performed in {} seconds\n".format(
-                query,
-                current_query,
-                total_queries,
-                '%.3f' % elapsed_time))
-            current_query += 1
-
-    # Show errors (if present)
-    if len(errors) > 0:
-        for e in errors:
-            logger_err.error(e)
-
-    logger.debug("All {} queries performed in a total of {} seconds\n".format(
-        total_queries,
-        '%.3f' % total_elapsed_time))
 
 
 def extract_historic_for_subreddit(subreddit: str, start_date: int):
@@ -451,24 +332,9 @@ def generate_blocks(posts: Iterable, es: bool, max_block_size: int, posts_per_bl
 
     result = {"current_block_size": current_block_size, "ok_docs": ok_docs, "skipped": skipped,
               "total_time": total_time, "start_date": start_date, "end_date": end_date,
-              "initial_date": initial_date, "last_post": last_post
-              }
+              "initial_date": initial_date, "last_post": last_post}
 
     return result
-
-
-def main(argv):
-    if len(argv) == 2:
-        try:
-            argv[0] = str(argv[0])
-            argv[1] = int(argv[1])
-            extract_posts_from_scales(argv[0], argv[1])
-        except ValueError:
-            logger_err.error("Invalid type of parameters (expected: <str> <str>)")
-            sys.exit(1)
-    else:
-        logger_err.error("Invalid amount of parameters (expected: 2)")
-        sys.exit(1)
 
 
 def merge_backups(file1: str, file2: str):
@@ -492,13 +358,47 @@ def merge_backups(file1: str, file2: str):
     except (OSError, IOError):
         logger_err.error("Error merging the files, skipping...")
         return False
-
     return True
 
 
-if __name__ == "__fetcher__":
-    main(sys.argv[1:])
+def obtain_authors_sample(subreddit_col_path: str, sample_size: int):
+    import random
+    import math
+    subr_authors = []
 
-# extract_posts_from_scales("./excel/one_query.xlsx", 1000)
+    if not os.path.isfile("./data/subr_authors.txt"):
+        with open(os.path.join("./backups/", subreddit_col_path), "r") as input_file:
+            for post in input_file:
+                try:
+                    post = json.loads(post)
+                    author = post["author"]
+                    if author not in subr_authors:
+                        subr_authors.append(author)
+                except KeyError:
+                    logger_err.error("No author key found in post with id: {}".format(post["id"]))
+
+        with open("./data/subr_authors.txt", "w+") as output:
+            for auth in subr_authors:
+                output.write(str(auth) + "\n")
+    else:
+        with open("./data/subr_authors.txt", "r") as input_file:
+            for auth in input_file:
+                subr_authors.append(auth)
+    logger.debug("Total amount of authors in subreddit file: {}".format(len(subr_authors)))
+
+    selected = []
+    k = len(subr_authors)/sample_size
+    starting_point = random.random() * k
+    while starting_point <= len(subr_authors):
+        index = math.ceil(starting_point) - 1
+        selected.append(subr_authors[index])
+        starting_point += k
+
+    with open("./data/subr_authors_selected.txt", "w+") as output:
+        for auth in selected:
+            output.write(str(auth))
+
+
 # obtain_reference_collection("./backups/r_depression_base.jsonl", 100, 100, 1577836800, False, "depression", None)
 # extract_historic_for_subreddit("depression", 1577836800)
+# obtain_authors_sample("r_depression_base.jsonl", 10000)
