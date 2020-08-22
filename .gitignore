@@ -128,14 +128,14 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Jetbrains IDE's
+# Jetbrains IDE
 .idea/
 
-# JSON backups folder
-backups/
+# JSON backups folder (managed by internal folder .gitignore to keep project's structure)
+# backups/
 
-# JSON datasets folder
-datasets/
+# JSON datasets folder (managed by internal folder .gitignore to keep project's structure)
+# datasets/
 
-# Binary files and matrices
-machinelearning/vectorizers
+# Binary files and matrices (managed by internal folder .gitignore to keep project's structure)
+# machinelearning/vectorizers
