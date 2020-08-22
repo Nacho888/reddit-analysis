@@ -1,0 +1,10 @@
+pandas
+sklearn
+nltk
+clean-text
+unidecode
+psaw>=0.0.7
+elasticsearch>=7.5.1
+elasticsearch_dsl
+swifter
+jupyter
