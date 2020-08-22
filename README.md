@@ -1,2 +1,2 @@
-# psy-scales-py
-Adaptation of psychometric scales to social media using Python
+# reddit-analysis
+Subreddit analysis of posts and users
