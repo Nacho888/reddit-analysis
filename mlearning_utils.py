@@ -1,4 +1,11 @@
 def get_pronoun_proportion(text: list):
+    """
+    Function that a given a text formatted as a list of words, return the proportion of pronouns of each type
+
+    :param text: list - the list of words to be processed
+    :return: dict - containing the proportion of pronouns of first, second and third person
+    """
+
     first_person = ["i", "me", "my", "mine", "myself"]
     second_person = ["you", "your", "yours", "yourself"]
     third_person = ["he", "him", "his", "himself", "she", "her", "hers", "herself"]

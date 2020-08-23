@@ -361,7 +361,51 @@ def merge_backups(file1: str, file2: str):
     return True
 
 
+def obtain_authors(subr_path: str, ref_path: str):
+    """
+    Given the path of the backups, extract the authors and fill two sets, were the elements of the second one are also
+    not present in the first one. Generates two .txt files containing the authors in each backup.
+
+    :param subr_path: str - path to the first file (i.e subreddit file)
+    :param ref_path: str - path to the second file (i.e reference collection based on the previous one)
+    """
+
+    subr_authors = set()
+    ref_authors = set()
+
+    for i, file in enumerate([subr_path, ref_path]):
+        with open(file, "r") as input_file:
+            for line in input_file:
+                try:
+                    loaded = json.loads(line)
+                    author = loaded["author"]
+                    if i == 0 and author not in subr_authors:
+                        subr_authors.add(author)
+                    elif i == 1 and author not in subr_authors and not author in ref_authors:
+                        ref_authors.add(author)
+                except KeyError:
+                    logger_err.error("Error in author key with post with ID: {}".format(loaded["id"]))
+
+    with open("./data/subr_authors.txt", "w") as output:
+        subr_authors_list = list(subr_authors)
+        for a in subr_authors_list:
+            output.write(a + "\n")
+
+    with open("./data/ref_authors.txt", "w") as output:
+        ref_authors_list = list(ref_authors)
+        for a in ref_authors_list:
+            output.write(a + "\n")
+
+
 def obtain_authors_sample(authors_info_path: str, sample_size: int):
+    """
+    Given the path to a .jsonl file containing the info of the authors, generates another .jsonl file and an excel file
+    containing the authors selected using systematic sampling (of the size given as parameter)
+
+    :param authors_info_path: str - path to the .jsonl file containing the info of the authors
+    :param sample_size: int- the size of the sample to be generated
+    """
+
     import random
     import math
     import pandas as pd
@@ -370,7 +414,7 @@ def obtain_authors_sample(authors_info_path: str, sample_size: int):
     with open(authors_info_path, "r") as input_file:
         for auth in input_file:
             authors.append(json.loads(auth))
-    logger.debug("Total amount of authors in subreddit file: {}".format(len(authors)))
+    logger.debug("Total amount of authors in file: {}".format(len(authors)))
 
     selected = []
     k = len(authors)/sample_size
@@ -391,4 +435,5 @@ def obtain_authors_sample(authors_info_path: str, sample_size: int):
 
 # obtain_reference_collection("./backups/r_depression_base.jsonl", 100, 100, 1577836800, False, "depression", None)
 # extract_historic_for_subreddit("depression", 1577836800)
-obtain_authors_sample("./data/authors_info_backup.jsonl", 10000)
+# obtain_authors_sample("./data/ref_authors_info_backup.jsonl", 10000)
+# obtain_authors("./backups/r_depression_base.jsonl", "./backups/reference_collection.jsonl")

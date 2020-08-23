@@ -10,6 +10,14 @@ logger = logging_factory.get_module_logger("indexer", logging.DEBUG)
 
 
 def decode_csv_gzip(file_handler):
+    """
+    Given a file handler (for .csv) formats all the info and returns an index and a dictionary with the required data
+
+    :param file_handler: the file handler containing the lines to be processed
+    :return: yielded index (str) and a dictionary containing the account identificator, the username, the date of
+    creation of the account, the date of retrieval and the comment and link karma punctuations
+    """
+
     for line in file_handler:
         info = line.split(",")
         acc_id, username, created, updated, comment_karma, link_karma = \
@@ -25,6 +33,13 @@ def decode_csv_gzip(file_handler):
 
 
 def es_add_bulk(path: str):
+    """
+    Given the path of a file containing all the data of the authors (by now in .gzip + .csv format), index all the data
+    in an Elastic Search index
+
+    :param path: str - path to the .gzip + .csv file containing all the authors info
+    """
+
     with gzip.open(path, "rt") as file:
         es = Elasticsearch(hosts=[{"host": "localhost", "port": 9200}])
 

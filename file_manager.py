@@ -24,10 +24,24 @@ def count_lines_file(path: str, filename: str):
 
 
 def clear_file(save_path: str, filename: str):
+    """
+    Given a path to a file and its name, clears the contents of the file
+
+    :param save_path: str - path to the file
+    :param filename: str - name of the file
+    """
+
     open(os.path.join(save_path, filename), "w").close()
 
 
 def sort_file(save_path: str, filename: str):
+    """
+    Given a file path and its name, sorts the contents of the file (default sorting)
+
+    :param save_path: str - path to the file
+    :param filename: str - name of the file
+    """
+
     words = []
     with open(os.path.join(save_path, filename)) as file:
         for line in file:
@@ -41,10 +55,23 @@ def sort_file(save_path: str, filename: str):
 
 
 def files_in_path(path: str):
+    """
+    Returns all the file names in a given path
+
+    :param path: str - the path to analyze
+    :return: list - the filenames
+    """
+
     return os.listdir(path)
 
 
 def remove_file(path: str):
+    """
+    Given a path to a file, tries to delete it
+
+    :param path: str - the path to the file
+    """
+
     try:
         os.remove(path)
     except OSError:
@@ -52,17 +79,38 @@ def remove_file(path: str):
 
 
 def clear_path(path: str):
+    """
+    Given a path, removes all the contents within it
+
+    :param path: str - the path to be cleared
+    """
+
     for file in os.listdir(path):
         os.remove(os.path.join(path, file))
 
 
 def create_subdir(base: str, sub_dir: str):
+    """
+    Creates a child directory into a parent directory given both paths (parent will be created if not existing)
+
+    :param base: str - the parent directory
+    :param sub_dir: str - the child directory
+    """
+
     if not os.path.exists(base):
         os.mkdir(base)
     os.mkdir(os.path.join(base, sub_dir))
 
 
 def cut_datasets(path: str, size_training: int, split_prop: float):
+    """
+    Given a path to a folder containing the whole datasets, the size of the training and the proportion of that size
+    to be dedicated to testing, creates smaller datasets based on the big ones (with the suffix "_s" in the filename)
+
+    :param path: str - path to the folder containing the datasets
+    :param size_training: int - the required size of the training datasets
+    :param split_prop: float - percentages formatted as, for example: 0.75 -> to obtain, 75% training and 25% testing
+    """
     for subdir in os.listdir(path):
         for file in os.listdir(os.path.join(path, subdir)):
             filename = file.split(".")[0] + "_s." + file.split(".")[1]

@@ -11,7 +11,17 @@ logger = logging_factory.get_module_logger("questioner", logging.DEBUG)
 
 
 def extract_authors_info(authors_path: str):
+    """
+    Given a .txt file containing the names of the authors, searches in an ElasticSearch index their corresponding
+    information (for reddit: account identificator, username, date of creation, date of retrieval, comment and
+    link karma punctuation). Generates a .jsonl file containing all the authors info sorted by their account id.
+
+    :param authors_path: str - path to the .txt file containing the authors
+    """
+
+    import math
     es = Elasticsearch(hosts=[{"host": "localhost", "port": 9200}])
+    max_query_size = 50000
 
     authors = []
     result = []
@@ -19,7 +29,7 @@ def extract_authors_info(authors_path: str):
         for author in input_file:
             authors.append(author.replace("\n", ""))
         print("Authors loaded ({})".format(len(authors)))
-        n_chunks = 10
+        n_chunks = math.ceil(len(authors)/max_query_size)
         processed = 1
         for chunk in [authors[round(len(authors) / n_chunks * i):round(len(authors) / n_chunks * (i + 1))] for i in
                       range(n_chunks)]:
@@ -44,4 +54,4 @@ def extract_authors_info(authors_path: str):
             output.write("\n")
 
 
-extract_authors_info("./data/subr_authors.txt")
+# extract_authors_info("./data/subr_authors.txt")
