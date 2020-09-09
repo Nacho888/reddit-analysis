@@ -4,6 +4,7 @@ import logging
 import logging_factory
 #####
 from datetime import datetime
+from dateutil.relativedelta import relativedelta
 #####
 logger_err = logging_factory.get_module_logger("date_utils_err", logging.ERROR)
 logger = logging_factory.get_module_logger("date_utils", logging.DEBUG)
@@ -12,15 +13,26 @@ logger = logging_factory.get_module_logger("date_utils", logging.DEBUG)
 time_format = "%Y-%m-%dT%H:%M:%S"
 
 
-def convert_to_iso_date_str(timestamp: int):
+def convert_to_iso_date_str(epoch: int):
     """
     Function that returns a formatted ISO-8601 timestamp given the milliseconds epoch value
 
-    :param timestamp: int - the timestamp in epoch milliseconds
+    :param epoch: int - the timestamp in epoch milliseconds
     :return: str - formatted timestamp
     """
 
-    return datetime.utcfromtimestamp(timestamp).strftime(time_format)
+    return datetime.utcfromtimestamp(epoch).strftime(time_format)
+
+
+def convert_to_iso_date(epoch: int):
+    """
+    Function that returns a date given the milliseconds epoch value
+
+    :param epoch: int - the timestamp in epoch milliseconds
+    :return: date - the converted date
+    """
+
+    return datetime.utcfromtimestamp(epoch)
 
 
 def convert_from_iso_date_str(timestamp: str):
@@ -43,3 +55,35 @@ def get_current_date(is_str: bool):
     """
 
     return datetime.fromtimestamp(time.time()).strftime(time_format) if is_str else int(time.time())
+
+
+def add_month_to_epoch(date_epoch: int, m: int):
+    """
+    Function that given a timestamp in epoch format, adds up to it the amount of months given
+
+    :param date_epoch: int - epoch milliseconds value
+    :param m: int - months to add
+    :return: int - modified epoch milliseconds value
+    """
+
+    if m <= 0:
+        logger.debug("Date not modified")
+        return date_epoch
+    else:
+        return int((convert_to_iso_date(date_epoch) + relativedelta(months=+m)).timestamp())
+
+
+def substract_month_from_epoch(date_epoch: int, m: int):
+    """
+    Function that given a timestamp in epoch format, subtracts from it the amount of months given
+
+    :param date_epoch: int - epoch milliseconds value
+    :param m: int - months to substract
+    :return: int - modified epoch milliseconds value
+    """
+
+    if m <= 0:
+        logger.debug("Date not modified")
+        return date_epoch
+    else:
+        return int((convert_to_iso_date(date_epoch) + relativedelta(months=-m)).timestamp())

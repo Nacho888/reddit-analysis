@@ -1,6 +1,6 @@
-import json
 import os
 import logging
+import json
 #####
 import logging_factory
 #####
@@ -8,50 +8,59 @@ logger_err = logging_factory.get_module_logger("file_manager_err", logging.ERROR
 logger = logging_factory.get_module_logger("file_manager", logging.DEBUG)
 
 
-def count_lines_file(path: str, filename: str):
+def count_lines_file(path: str):
     """
     Function that returns the number of lines of a file given its path
 
     :param path: str - the path to the file
-    :param filename: str - the name of the file
     :return: int - the number of lines of the file
     """
 
-    with open(os.path.join(path, filename)) as f:
+    with open(path) as f:
         for i, l in enumerate(f):
             pass
     return i + 1
 
 
-def clear_file(save_path: str, filename: str):
+def clear_file(save_path: str):
     """
-    Given a path to a file and its name, clears the contents of the file
+    Given a path to a file, clears the contents of the file
 
     :param save_path: str - path to the file
-    :param filename: str - name of the file
     """
 
-    open(os.path.join(save_path, filename), "w").close()
+    open(save_path, "w").close()
 
 
-def sort_file(save_path: str, filename: str):
+def sort_file(path: str, field: str):
     """
-    Given a file path and its name, sorts the contents of the file (default sorting)
+    Given a file path (.jsonl format), sorts the contents of the file (using the provided key)
 
-    :param save_path: str - path to the file
-    :param filename: str - name of the file
+    :param path: str - path to the file
+    :param field: str - the key to use in the sort
     """
 
-    words = []
-    with open(os.path.join(save_path, filename)) as file:
+    logger.debug("Starting file sorting by field '{}'...".format(field))
+
+    # File will be loaded in a list (watch out with the size)
+    lines = []
+    with open(path) as file:
         for line in file:
-            words.append(line)
-    words.sort()
+            lines.append(json.loads(line))
 
-    clear_file(save_path, filename)
-    with open(os.path.join(save_path, filename), "a") as file:
-        for line in words:
-            file.write(line)
+    # Sort
+    try:
+        lines = sorted(lines, key=lambda k: int(k[field]))
+    except KeyError:
+        pass
+
+    # Clean file
+    clear_file(path)
+    # And rewrite with the new sorting
+    with open(path, "a") as file:
+        for line in lines:
+            file.write(json.dumps(line))
+            file.write("\n")
 
 
 def files_in_path(path: str):
