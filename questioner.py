@@ -29,40 +29,46 @@ def extract_authors_info(authors_path: str):
     authors = []
     result = []
     # Extract the author names
-    with open(authors_path, "r") as input_file:
-        for author in input_file:
-            authors.append(author.replace("\n", ""))
-        logger.debug("Authors loaded ({})".format(len(authors)))
-        n_chunks = math.ceil(len(authors) / max_query_size)
+    try:
+        with open(authors_path, "r") as input_file:
+            for author in input_file:
+                authors.append(author.replace("\n", ""))
+            logger.debug("Authors loaded ({})".format(len(authors)))
+            n_chunks = math.ceil(len(authors) / max_query_size)
 
-        processed = 1
-        # Divide the list of author names in chunks of the maximum size allowed in order to speed up the search
-        for chunk in [authors[round(len(authors) / n_chunks * i):round(len(authors) / n_chunks * (i + 1))] for i in
-                      range(n_chunks)]:
-            # Query with all the chunk at the same time
-            search = search.filter("terms", username=chunk)
-            for hit in search.scan():
-                result.append({"acc_id": hit.acc_id,
-                               "username": hit.username,
-                               "created": hit.created,
-                               "updated": hit.updated,
-                               "comment_karma": hit.comment_karma,
-                               "link_karma": hit.link_karma
-                               })
-            logger.debug("Chunk {}/{} processed".format(processed, n_chunks))
-            processed += 1
+            processed = 1
+            # Divide the list of author names in chunks of the maximum size allowed in order to speed up the search
+            for chunk in [authors[round(len(authors) / n_chunks * i):round(len(authors) / n_chunks * (i + 1))] for i in
+                          range(n_chunks)]:
+                # Query with all the chunk at the same time
+                search = search.filter("terms", username=chunk)
+                for hit in search.scan():
+                    result.append({"acc_id": hit.acc_id,
+                                   "username": hit.username,
+                                   "created": hit.created,
+                                   "updated": hit.updated,
+                                   "comment_karma": hit.comment_karma,
+                                   "link_karma": hit.link_karma
+                                   })
+                logger.debug("Chunk {}/{} processed".format(processed, n_chunks))
+                processed += 1
+    except (OSError, IOError):
+        logger_err.error("Read/Write error has occurred")
     logger.debug("Information successfully found of {} authors".format(len(result)))
 
     result = sorted(result, key=lambda k: int(k["acc_id"]))
 
     # Save data to file
-    with open("./data/authors_info_backup.jsonl", "w") as output:
-        for line in result:
-            output.write(json.dumps(line))
-            output.write("\n")
+    try:
+        with open("./data/authors_info_backup.jsonl", "w") as output:
+            for line in result:
+                output.write(json.dumps(line))
+                output.write("\n")
+    except (OSError, IOError):
+        logger_err.error("Read/Write error has occurred")
 
     # Save to data to ElasticSearch
-    indexer.es_add_bulk("./data/authors_info_backup.jsonl", "r_depression_authors")
+    indexer.es_add_bulk("./data/authors_info_backup.jsonl", "r_depression_authors_info")
     logger.debug("Data successfully indexed")
 
 
@@ -94,15 +100,21 @@ def generate_reference_authors(authors_info: str, subreddit_authors: str, months
 
     # Load selected users
     authors_selected = []
-    with open(authors_info, "r") as input_file:
-        for author_info in input_file:
-            authors_selected.append(author_info)
+    try:
+        with open(authors_info, "r") as input_file:
+            for author_info in input_file:
+                authors_selected.append(author_info)
+    except (OSError, IOError):
+        logger_err.error("Read/Write error has occurred")
 
     # Load all usernames of the authors of the subreddit
     dep_authors = set()
-    with open(subreddit_authors, "r") as input_file:
-        for author in input_file:
-            dep_authors.add(author.replace("\n", ""))
+    try:
+        with open(subreddit_authors, "r") as input_file:
+            for author in input_file:
+                dep_authors.add(author.replace("\n", ""))
+    except (OSError, IOError):
+        logger_err.error("Read/Write error has occurred")
 
     result = []
     for i, author in enumerate(authors_selected):
@@ -143,10 +155,13 @@ def generate_reference_authors(authors_info: str, subreddit_authors: str, months
     logger.debug("Total amount of authors found: {}".format(len(result)))
 
     # Backup list to .jsonl and .xlsx
-    with open("./data/ref_authors_selected.jsonl", "w") as output:
-        for line in result:
-            output.write(json.dumps(line))
-            output.write("\n")
+    try:
+        with open("./data/ref_authors_selected.jsonl", "w") as output:
+            for line in result:
+                output.write(json.dumps(line))
+                output.write("\n")
+    except (OSError, IOError):
+        logger_err.error("Read/Write error has occurred")
 
     df = pd.DataFrame(result)
     df.to_excel("./data/ref_authors_selected.xlsx")

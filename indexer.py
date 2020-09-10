@@ -69,6 +69,8 @@ def es_add_bulk(path: str, index_name: str):
         is_csv = True
         valid = True
         fh = gzip.open(path, "rt")
+    else:
+        logger_err.error("Provide a valid file format: (.gzip + .csv) or .jsonl")
 
     if valid:
         logger.debug("Starting indexing...")
