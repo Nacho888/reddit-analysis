@@ -50,7 +50,7 @@ def sort_file(path: str, field: str):
 
     # Sort
     try:
-        lines = sorted(lines, key=lambda k: int(k[field]))
+        lines = sorted(lines, key=lambda k: int(k[field]), reverse=True)
     except KeyError:
         pass
 
