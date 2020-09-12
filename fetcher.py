@@ -203,6 +203,7 @@ def obtain_reference_collection(path: str, max_block_size: int, posts_per_block:
 
     logger.debug("Starting generation of the reference collection...")
 
+    resp = {}
     if posts is not None:
         logger.debug("Data coming from ES loaded...")
         resp = generate_blocks(posts, True, max_block_size, posts_per_block, base_date, timestamp, exclude)
@@ -214,34 +215,35 @@ def obtain_reference_collection(path: str, max_block_size: int, posts_per_block:
         except (OSError, IOError):
             logger_err.error("Read/Write error has occurred")
 
-    end_date = resp["end_date"]
-    if resp["current_block_size"] > 0:
-        # Write remaining
-        if resp["start_date"] < base_date:
-            end_date = resp["last_post"]["created_utc"]
-            second_resp = extract_posts_for_interval(resp["start_date"], end_date, resp["current_block_size"] + 1,
-                                                     timestamp, exclude)
-            # Join remaining
-            merged = merge_backups("ref_col_{}_{}.jsonl".format(max_block_size, timestamp),
-                                   "ref_col_{}_{}.jsonl".format(resp["current_block_size"] + 1, timestamp))
-            # Delete once completed
-            if merged:
-                file_manager.remove_file("./backups/ref_col_{}_{}.jsonl".format(resp["current_block_size"] + 1,
-                                                                                timestamp))
+    if resp:
+        end_date = resp["end_date"]
+        if resp["current_block_size"] > 0:
+            # Write remaining
+            if resp["start_date"] < base_date:
+                end_date = resp["last_post"]["created_utc"]
+                second_resp = extract_posts_for_interval(resp["start_date"], end_date, resp["current_block_size"] + 1,
+                                                         timestamp, exclude)
+                # Join remaining
+                merged = merge_backups("ref_col_{}_{}.jsonl".format(max_block_size, timestamp),
+                                       "ref_col_{}_{}.jsonl".format(resp["current_block_size"] + 1, timestamp))
+                # Delete once completed
+                if merged:
+                    file_manager.remove_file("./backups/ref_col_{}_{}.jsonl".format(resp["current_block_size"] + 1,
+                                                                                    timestamp))
 
-            resp["total_time"] += second_resp["elapsed_time"]  # Add the time spent with the remaining documents
-            resp["ok_docs"] += second_resp["ok_docs"]  # Add the successful documents
+                resp["total_time"] += second_resp["elapsed_time"]  # Add the time spent with the remaining documents
+                resp["ok_docs"] += second_resp["ok_docs"]  # Add the successful documents
 
-    logger.debug("Generated documents between {} and {} with {} documents per interval (size {})".format(
-        date_utils.convert_to_iso_date_str(resp["initial_date"]),
-        date_utils.convert_to_iso_date_str(end_date),
-        posts_per_block,
-        max_block_size))
-    logger.debug("Total elapsed time generating the collection: {} seconds".format(resp["total_time"]))
-    logger.debug("{} documents where skipped because newer than {} and {} documents where generated".format(
-        resp["skipped"],
-        date_utils.convert_to_iso_date_str(base_date),
-        resp["ok_docs"]))
+        logger.debug("Generated documents between {} and {} with {} documents per interval (size {})".format(
+            date_utils.convert_to_iso_date_str(resp["initial_date"]),
+            date_utils.convert_to_iso_date_str(end_date),
+            posts_per_block,
+            max_block_size))
+        logger.debug("Total elapsed time generating the collection: {} seconds".format(resp["total_time"]))
+        logger.debug("{} documents where skipped because newer than {} and {} documents where generated".format(
+            resp["skipped"],
+            date_utils.convert_to_iso_date_str(base_date),
+            resp["ok_docs"]))
 
 
 def generate_blocks(posts: Iterable, es: bool, max_block_size: int, posts_per_block: int, base_date: int,
@@ -399,13 +401,14 @@ def search_author_posts(username: str, save_path: str, exclude: Optional[str] = 
     return num_posts
 
 
-def extract_authors_posts(path: str, save_path: str, exclude: Optional[str] = None):
+def extract_authors_posts(path: str, save_path: str, log: bool, exclude: Optional[str] = None):
     """
     Given a path to file containing the data of the authors (.jsonl) creates a file containing all the posts made by
     that users (a subreddit to skip can be also provided so that posts in that subreddit will be skipped)
 
     :param path: str - the path to the file containing the data of the authors
     :param save_path: str - the path to the file to save all the posts of each author
+    :param log: bool - activates/deactivates logging of authors
     :param exclude: str/None - the subreddit to skip
     """
 
@@ -425,8 +428,9 @@ def extract_authors_posts(path: str, save_path: str, exclude: Optional[str] = No
                 author_data = json.loads(a)
                 posts_found = search_author_posts(author_data["username"], save_path, exclude)
                 total_posts += posts_found
-                logger.debug("{}/{} - ({}: {} posts) authors processed".format(i, total_authors, author_data["username"],
-                                                                               posts_found))
+                if log:
+                    logger.debug("{}/{} - ({}: {} posts)".format(i, total_authors, author_data["username"],
+                                                                 posts_found))
     except (OSError, IOError):
         logger_err.error("Read/Write error has occurred")
 
@@ -483,6 +487,8 @@ def systematic_authors_sample(authors_info_path: str, sample_size: int):
 
     df = pd.DataFrame(selected)
     df.to_excel("./data/subr_authors_selected.xlsx")
+
+    logger.debug("Sample generated")
 
 
 def obtain_authors_samples(authors_info_path: str, sample_size: int, subreddit_authors: str, months_diff: int,
@@ -601,8 +607,10 @@ def generate_authors_samples(subreddit: str, sample_size: int, months_diff: int,
         obtain_authors_samples("./backups/subr_authors_info_backup.jsonl", sample_size, "./data/subr_authors.txt",
                                months_diff, similarity_karma)
         # Extract posts for both samples
-        extract_authors_posts("./data/subr_authors_selected.jsonl", "./backups/subr_author_posts.jsonl", subreddit)
-        extract_authors_posts("./data/ref_authors_selected.jsonl", "./backups/ref_author_posts.jsonl", subreddit)
+        extract_authors_posts("./data/subr_authors_selected.jsonl", "./backups/subr_author_posts.jsonl", False,
+                              subreddit)
+        extract_authors_posts("./data/ref_authors_selected.jsonl", "./backups/ref_author_posts.jsonl", False,
+                              subreddit)
     else:
         logger_err.error("Parameters incorrectly provided, check that 'path' and 'before_date' are valid")
     logger.debug("Datasets generated")
@@ -610,6 +618,7 @@ def generate_authors_samples(subreddit: str, sample_size: int, months_diff: int,
 
 # obtain_reference_collection("./backups/r_depression_base.jsonl", 100, 100, 1577836800, "depression", None)
 # extract_historic_for_subreddit("depression", 1577836800)
+# systematic_authors_sample("./backups/subr_authors_info_backup.jsonl", 12000)
 # obtain_authors_samples("./backups/subr_authors_info_backup.jsonl", 10000, "./data/subr_authors.txt", 6, 0.25)
-extract_authors_posts("./data/subr_authors_selected.jsonl", "./backups/subr_author_posts.jsonl", "depression")
-extract_authors_posts("./data/ref_authors_selected.jsonl", "./backups/ref_author_posts.jsonl", "depression")
+# extract_authors_posts("./data/subr_authors_selected.jsonl", "./backups/subr_author_posts.jsonl", "depression")
+# extract_authors_posts("./data/ref_authors_selected.jsonl", "./backups/ref_author_posts.jsonl", "depression")

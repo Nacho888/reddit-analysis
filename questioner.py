@@ -1,5 +1,6 @@
 import json
 import logging
+import pandas as pd
 #####
 import logging_factory
 import indexer
@@ -72,6 +73,24 @@ def extract_authors_info(authors_path: str):
     logger.debug("Data successfully indexed")
 
 
+def clean_sample(not_found: list, authors_info: str):
+    authors = []
+    try:
+        with open(authors_info, "r") as file:
+            for author in file:
+                authors.append(json.loads(author))
+        with open(authors_info, "w") as output:
+            for author in authors:
+                if author["username"] not in not_found:
+                    output.write(json.dumps(author))
+                    output.write("\n")
+    except (OSError, IOError):
+        logger_err.error("Read/Write error has occurred")
+
+    df = pd.DataFrame(authors)
+    df.to_excel("./data/subr_authors_selected.xlsx")
+
+
 def generate_reference_authors(authors_info: str, subreddit_authors: str, months_diff: int, similarity_karma: float):
     """
     Function that given a file containing data about the author selected via systematic sampling and a file containing
@@ -89,9 +108,14 @@ def generate_reference_authors(authors_info: str, subreddit_authors: str, months
     """
 
     import date_utils as d
-    import pandas as pd
 
     logger.debug("Starting reference authors generation...")
+
+    # List of users with no pair found for this configuration
+    not_found = []
+
+    # Usernames already found
+    usernames_found = set()
 
     es = Elasticsearch(hosts=[{"host": "localhost", "port": 9200}])
     # Indices with the information of all users and with only r/depression users
@@ -139,10 +163,15 @@ def generate_reference_authors(authors_info: str, subreddit_authors: str, months
             # Query the "all" users index to find potential similar users
             response2 = s_all.filter(q)
 
+            is_found = False
             for hit in response2:
                 # Make sure that our user is not present in the list of all users who have ever published in the
-                # subreddit (i.e r/depression)
-                if hit.username not in dep_authors:
+                # subreddit (i.e r/depression), is not the same we are using to find the pair and is not already
+                # in the list of users found
+                if hit.username not in dep_authors and hit.username not in usernames_found and \
+                        found.username is not hit.username:
+                    is_found = True
+                    usernames_found.add(hit.username)
                     result.append({"acc_id": hit.acc_id,
                                    "username": hit.username,
                                    "created": hit.created,
@@ -151,8 +180,14 @@ def generate_reference_authors(authors_info: str, subreddit_authors: str, months
                                    "link_karma": hit.link_karma
                                    })
                     break  # We only want the first user found
+            if is_found is False:
+                not_found.append(found.username)
 
     logger.debug("Total amount of authors found: {}".format(len(result)))
+
+    if len(not_found) > 0:
+        logger.debug("Total amount of authors with no pair found: {} (Cleaning...)".format(len(not_found)))
+        clean_sample(not_found, authors_info)
 
     # Backup list to .jsonl and .xlsx
     try:
