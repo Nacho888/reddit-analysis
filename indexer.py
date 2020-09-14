@@ -89,5 +89,5 @@ def es_add_bulk(path: str, index_name: str):
         fh.close()
 
 
-# es_add_bulk("./data/subr_authors_info_backup.jsonl", "r_depression_users_info")
+# es_add_bulk("./backups/authors_info_backup.jsonl", "r_depression_users_info")
 # es_add_bulk("D:/OneDrive - Universidad de Oviedo/tfg/69M_reddit_accounts.csv.gz", "reddit_users_info")

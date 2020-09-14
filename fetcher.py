@@ -604,7 +604,7 @@ def generate_authors_samples(subreddit: str, sample_size: int, months_diff: int,
         # Then, extract the information about the authors and index it aswell
         questioner.extract_authors_info("./data/subr_authors.txt")
         # Obtain the samples of authors
-        obtain_authors_samples("./backups/subr_authors_info_backup.jsonl", sample_size, "./data/subr_authors.txt",
+        obtain_authors_samples("./backups/authors_info_backup.jsonl", sample_size, "./data/subr_authors.txt",
                                months_diff, similarity_karma)
         # Extract posts for both samples
         extract_authors_posts("./data/subr_authors_selected.jsonl", "./backups/subr_author_posts.jsonl", False,
@@ -618,7 +618,7 @@ def generate_authors_samples(subreddit: str, sample_size: int, months_diff: int,
 
 # obtain_reference_collection("./backups/r_depression_base.jsonl", 100, 100, 1577836800, "depression", None)
 # extract_historic_for_subreddit("depression", 1577836800)
-# systematic_authors_sample("./backups/subr_authors_info_backup.jsonl", 12000)
-# obtain_authors_samples("./backups/subr_authors_info_backup.jsonl", 10000, "./data/subr_authors.txt", 6, 0.25)
+# systematic_authors_sample("./backups/authors_info_backup.jsonl", 12000)
+# obtain_authors_samples("./backups/authors_info_backup.jsonl", 10000, "./data/subr_authors.txt", 6, 0.25)
 # extract_authors_posts("./data/subr_authors_selected.jsonl", "./backups/subr_author_posts.jsonl", "depression")
 # extract_authors_posts("./data/ref_authors_selected.jsonl", "./backups/ref_author_posts.jsonl", "depression")
