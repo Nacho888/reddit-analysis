@@ -57,33 +57,33 @@ def get_current_date(is_str: bool):
     return datetime.fromtimestamp(time.time()).strftime(time_format) if is_str else int(time.time())
 
 
-def add_month_to_epoch(date_epoch: int, m: int):
+def add_days_to_epoch(date_epoch: int, d: int):
     """
-    Function that given a timestamp in epoch format, adds up to it the amount of months given
+    Function that given a timestamp in epoch format, adds up to it the amount of days given
 
     :param date_epoch: int - epoch milliseconds value
-    :param m: int - months to add
+    :param d: int - days to add
     :return: int - modified epoch milliseconds value
     """
 
-    if m <= 0:
+    if d <= 0:
         logger.debug("Date not modified")
         return date_epoch
     else:
-        return int((convert_to_iso_date(date_epoch) + relativedelta(months=+m)).timestamp())
+        return int((convert_to_iso_date(date_epoch) + relativedelta(days=+d)).timestamp())
 
 
-def substract_month_from_epoch(date_epoch: int, m: int):
+def substract_days_from_epoch(date_epoch: int, d: int):
     """
-    Function that given a timestamp in epoch format, subtracts from it the amount of months given
+    Function that given a timestamp in epoch format, subtracts from it the amount of days given
 
     :param date_epoch: int - epoch milliseconds value
-    :param m: int - months to substract
+    :param d: int - days to substract
     :return: int - modified epoch milliseconds value
     """
 
-    if m <= 0:
+    if d <= 0:
         logger.debug("Date not modified")
         return date_epoch
     else:
-        return int((convert_to_iso_date(date_epoch) + relativedelta(months=-m)).timestamp())
+        return int((convert_to_iso_date(date_epoch) + relativedelta(days=-d)).timestamp())

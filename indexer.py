@@ -4,7 +4,8 @@ import json
 #####
 import logging_factory
 #####
-from elasticsearch import Elasticsearch, helpers
+from elasticsearch import Elasticsearch, helpers, ConnectionTimeout, ConnectionError
+from elasticsearch.helpers import BulkIndexError
 #####
 logger_err = logging_factory.get_module_logger("indexer_err", logging.ERROR)
 logger = logging_factory.get_module_logger("indexer", logging.DEBUG)
@@ -25,7 +26,10 @@ def decode_file(file_handler, is_csv: bool):
 
     # If it's a .csv file, skip the header
     if is_csv:
-        next(file_handler)
+        try:
+            next(file_handler)
+        except StopIteration:
+            logger_err.error("Empty .csv file")
 
     for line in file_handler:
         if is_csv:
@@ -74,7 +78,8 @@ def es_add_bulk(path: str, index_name: str):
 
     if valid:
         logger.debug("Starting indexing...")
-        es = Elasticsearch(hosts=[{"host": "localhost", "port": 9200}])
+        host, port = "localhost", 9200
+        es = Elasticsearch(hosts=[{"host": host, "port": port}])
 
         # Setup the generator
         k = ({
@@ -84,10 +89,15 @@ def es_add_bulk(path: str, index_name: str):
             "_source": es_dict,
         } for _id, es_dict in decode_file(fh, is_csv))
 
-        # Index all the data
-        helpers.bulk(es, k)
-        fh.close()
+        try:
+            # Index all the data
+            helpers.bulk(es, k)
+            fh.close()
+        except (ConnectionError, ConnectionTimeout):
+            logger_err.error("Error communicating with ElasticSearch - host: {}, port: {}".format(host, port))
+        except BulkIndexError:
+            logger_err.error("Errored encountered while indexing the data")
 
 
-# es_add_bulk("./backups/authors_info_backup.jsonl", "r_depression_users_info")
+# es_add_bulk("./backups/subr_authors_info_backup.jsonl", "r_depression_users_info")
 # es_add_bulk("D:/OneDrive - Universidad de Oviedo/tfg/69M_reddit_accounts.csv.gz", "reddit_users_info")

@@ -4,8 +4,9 @@ import pandas as pd
 #####
 import logging_factory
 import indexer
+import fetcher
 #####
-from elasticsearch import Elasticsearch
+from elasticsearch import Elasticsearch, ConnectionTimeout, TransportError, ConnectionError
 from elasticsearch_dsl import Search, Q
 #####
 logger_err = logging_factory.get_module_logger("questioner_err", logging.ERROR)
@@ -23,7 +24,8 @@ def extract_authors_info(authors_path: str):
 
     import math
 
-    es = Elasticsearch(hosts=[{"host": "localhost", "port": 9200}])
+    host, port = "localhost", 9200
+    es = Elasticsearch(hosts=[{"host": host, "port": port}])
     search = Search(using=es, index="reddit_users")
     max_query_size = 50000
 
@@ -42,15 +44,21 @@ def extract_authors_info(authors_path: str):
             for chunk in [authors[round(len(authors) / n_chunks * i):round(len(authors) / n_chunks * (i + 1))] for i in
                           range(n_chunks)]:
                 # Query with all the chunk at the same time
-                search = search.filter("terms", username=chunk)
-                for hit in search.scan():
-                    result.append({"acc_id": hit.acc_id,
-                                   "username": hit.username,
-                                   "created": hit.created,
-                                   "updated": hit.updated,
-                                   "comment_karma": hit.comment_karma,
-                                   "link_karma": hit.link_karma
-                                   })
+                try:
+                    search = search.filter("terms", username=chunk)
+                    for hit in search.scan():
+                        result.append({"acc_id": hit.acc_id,
+                                       "username": hit.username,
+                                       "created": hit.created,
+                                       "updated": hit.updated,
+                                       "comment_karma": hit.comment_karma,
+                                       "link_karma": hit.link_karma
+                                       })
+                except (ConnectionError, ConnectionTimeout):
+                    logger_err.error("Error communicating with ElasticSearch - host: {}, port: {}".format(host, port))
+                except TransportError:
+                    logger_err.error("Errored ElasticSearch query: 'filter'")
+
                 logger.debug("Chunk {}/{} processed".format(processed, n_chunks))
                 processed += 1
     except (OSError, IOError):
@@ -61,7 +69,7 @@ def extract_authors_info(authors_path: str):
 
     # Save data to file
     try:
-        with open("./data/authors_info_backup.jsonl", "w") as output:
+        with open("./data/subr_authors_info_backup.jsonl", "w") as output:
             for line in result:
                 output.write(json.dumps(line))
                 output.write("\n")
@@ -69,7 +77,7 @@ def extract_authors_info(authors_path: str):
         logger_err.error("Read/Write error has occurred")
 
     # Save to data to ElasticSearch
-    indexer.es_add_bulk("./data/authors_info_backup.jsonl", "r_depression_authors_info")
+    indexer.es_add_bulk("./data/subr_authors_info_backup.jsonl", "r_depression_authors_info")
     logger.debug("Data successfully indexed")
 
 
@@ -91,20 +99,20 @@ def clean_sample(not_found: list, authors_info: str):
     df.to_excel("./data/subr_authors_selected.xlsx")
 
 
-def generate_reference_authors(authors_info: str, subreddit_authors: str, months_diff: int, similarity_karma: float):
+def generate_reference_authors(authors_info: str, subreddit_authors: str, days_diff: int, similarity: float):
     """
     Function that given a file containing data about the author selected via systematic sampling and a file containing
     the names of the authors to omit, generates two files (.jsonl and .xlsx) with authors that are similar in account
-    creation time (by means of an user defined interval of months) and in comment and link karma punctuations
+    creation time (by means of an user defined interval of days) and in comment and link karma punctuations
     (by means of a percentage controlled by the user)
 
     :param authors_info: str - path to the file containing the data of the authors selected (.jsonl format)
     :param subreddit_authors: str - path to the file containing the name of the authors in a certain subreddit and used
     to skip them (.txt)
-    :param months_diff: int - interval of difference in months between accounts creation
-    [base - months_diff, base, base + months_diff]
-    :param similarity_karma: float - (0-1.0] Percentage of deviation of comment and karma punctuations between the
-    users provided and the users to be found
+    :param days_diff: int - interval of difference in days between accounts creation
+    [base - days, base, base + days]
+    :param similarity: float - (0-1.0] Percentage of deviation of comment and karma punctuations (and post number)
+    between the users provided and the users to be found
     """
 
     import date_utils as d
@@ -117,7 +125,11 @@ def generate_reference_authors(authors_info: str, subreddit_authors: str, months
     # Usernames already found
     usernames_found = set()
 
-    es = Elasticsearch(hosts=[{"host": "localhost", "port": 9200}])
+    # Authors with pair found
+    authors_with_pair = []
+
+    host, port = "localhost", 9200
+    es = Elasticsearch(hosts=[{"host": host, "port": port}])
     # Indices with the information of all users and with only r/depression users
     s_all = Search(using=es, index="reddit_users_info")
     s_dep = Search(using=es, index="r_depression_users_info")
@@ -142,46 +154,67 @@ def generate_reference_authors(authors_info: str, subreddit_authors: str, months
 
     result = []
     for i, author in enumerate(authors_selected):
-        # Extract user info based on its account id (unique)
-        response = s_dep.query("match", acc_id=json.loads(author)["acc_id"]).execute()
+        try:
+            # Extract user info based on its account id (unique)
+            response = s_dep.query("match", acc_id=json.loads(author)["acc_id"]).execute()
 
-        if len(response.hits) > 0:
-            found = response.hits[0]
-            # Extract the information
-            created, comment, link = int(found.created), int(found.comment_karma), int(found.link_karma)
+            if len(response.hits) > 0:
+                found = response.hits[0]
+                # Extract the information
+                created, comment, link = int(found.created), int(found.comment_karma), int(found.link_karma)
+                found_posts = fetcher.count_author_posts(found.username, 1577836800, fetcher.list_excluded_subreddits(
+                    "./data/dep_subreddits.txt"))
 
-            # And create the ranges
-            ranges = [[d.substract_month_from_epoch(created, months_diff), d.add_month_to_epoch(created, months_diff)],
-                      [comment - comment * similarity_karma, comment + comment * similarity_karma],
-                      [link - link * similarity_karma, link + link * similarity_karma]]
+                # And create the ranges
+                ranges = [[d.substract_days_from_epoch(created, days_diff), d.add_days_to_epoch(created, days_diff)],
+                          [comment - comment * similarity, comment + comment * similarity],
+                          [link - link * similarity, link + link * similarity],
+                          [found_posts - found_posts * similarity, found_posts + found_posts * similarity]]
 
-            # Define queries for each field to be contained in the given intervals
-            q = Q("range", created={"gte": ranges[0][0], "lte": ranges[0][1]}) & \
-                Q("range", comment_karma={"gte": ranges[1][0], "lte": ranges[1][1]}) & \
-                Q("range", link_karma={"gte": ranges[2][0], "lte": ranges[2][1]})
+                # Define queries for each field to be contained in the given intervals
+                q = Q("range", created={"gte": ranges[0][0], "lte": ranges[0][1]}) & \
+                    Q("range", comment_karma={"gte": ranges[1][0], "lte": ranges[1][1]}) & \
+                    Q("range", link_karma={"gte": ranges[2][0], "lte": ranges[2][1]})
 
-            # Query the "all" users index to find potential similar users
-            response2 = s_all.filter(q)
+                try:
+                    # Query the "all" users index to find potential similar users
+                    response2 = s_all.filter(q)
 
-            is_found = False
-            for hit in response2:
-                # Make sure that our user is not present in the list of all users who have ever published in the
-                # subreddit (i.e r/depression), is not the same we are using to find the pair and is not already
-                # in the list of users found
-                if hit.username not in dep_authors and hit.username not in usernames_found and \
-                        found.username is not hit.username:
-                    is_found = True
-                    usernames_found.add(hit.username)
-                    result.append({"acc_id": hit.acc_id,
-                                   "username": hit.username,
-                                   "created": hit.created,
-                                   "updated": hit.updated,
-                                   "comment_karma": hit.comment_karma,
-                                   "link_karma": hit.link_karma
-                                   })
-                    break  # We only want the first user found
-            if is_found is False:
-                not_found.append(found.username)
+                    is_found = False
+                    for hit in response2:
+                        posts_count = fetcher.count_author_posts(hit.username, 1577836800,
+                                                                 fetcher.list_excluded_subreddits(
+                                                                     "./data/dep_subreddits.txt"))
+                        valid_posts = ranges[3][0] <= posts_count & posts_count <= ranges[3][1]
+                        # Make sure that our user is not present in the list of all users who have ever published in the
+                        # subreddit (i.e r/depression), is not the same we are using to find the pair and is not already
+                        # in the list of users found (and that complies with the interval of posts)
+                        if valid_posts and hit.username not in dep_authors and hit.username not in usernames_found and \
+                                found.username is not hit.username:
+                            is_found = True
+                            usernames_found.add(hit.username)
+
+                            auth = json.loads(author)
+                            auth["posts_count"] = found
+                            authors_with_pair.append(auth)
+
+                            result.append({"acc_id": hit.acc_id,
+                                           "username": hit.username,
+                                           "created": hit.created,
+                                           "updated": hit.updated,
+                                           "comment_karma": hit.comment_karma,
+                                           "link_karma": hit.link_karma,
+                                           "posts_count": posts_count
+                                           })
+                            break  # We only want the first user found
+                    if is_found is False:
+                        not_found.append(found.username)
+                except TransportError:
+                    logger_err.error("Errored ElasticSearch query: {}".format(str(q)))
+        except (ConnectionError, ConnectionTimeout):
+            logger_err.error("Error communicating with ElasticSearch - host: {}, port: {}".format(host, port))
+        except TransportError:
+            logger_err.error("Errored ElasticSearch query: 'match'")
 
     logger.debug("Total amount of authors found: {}".format(len(result)))
 
@@ -201,6 +234,5 @@ def generate_reference_authors(authors_info: str, subreddit_authors: str, months
     df = pd.DataFrame(result)
     df.to_excel("./data/ref_authors_selected.xlsx")
 
-
 # extract_authors_info("./data/subr_authors.txt")
-# generate_reference_authors("./data/subr_authors_selected.jsonl", "./data/subr_authors.txt", 6, 0.25)
+# generate_reference_authors("./data/subr_authors_selected.jsonl", "./data/subr_authors.txt", 30, 0.10)

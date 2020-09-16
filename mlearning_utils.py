@@ -2,7 +2,7 @@ def get_pronoun_proportion(text: list):
     """
     Function that a given a text formatted as a list of words, return the proportion of pronouns of each type
 
-    :param text: list - the list of words to be processed
+    :param text: list[str] - the list of words to be processed
     :return: dict - containing the proportion of pronouns of first, second and third person
     """
 

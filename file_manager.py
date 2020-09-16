@@ -68,7 +68,7 @@ def files_in_path(path: str):
     Returns all the file names in a given path
 
     :param path: str - the path to analyze
-    :return: list - the filenames
+    :return: list[str] - the filenames
     """
 
     return os.listdir(path)
