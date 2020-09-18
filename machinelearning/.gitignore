@@ -1,0 +1,9 @@
+# Ignore everything in this directory
+*
+# Except this file
+!.gitignore
+!datasets_generation.ipynb
+!datasets_analysis.ipynb
+!datasets_revision.ipynb
+!preprocessing.ipynb
+!main.ipynb
