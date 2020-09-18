@@ -4,7 +4,6 @@ import pandas as pd
 #####
 import logging_factory
 import indexer
-import fetcher
 #####
 from elasticsearch import Elasticsearch, ConnectionTimeout, TransportError, ConnectionError
 from elasticsearch_dsl import Search, Q
