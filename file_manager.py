@@ -68,7 +68,7 @@ def files_in_path(path: str):
     Returns all the file names in a given path
 
     :param path: str - the path to analyze
-    :return: list - the filenames
+    :return: list[str] - the filenames
     """
 
     return os.listdir(path)
@@ -109,6 +109,30 @@ def create_subdir(base: str, sub_dir: str):
     if not os.path.exists(base):
         os.mkdir(base)
     os.mkdir(os.path.join(base, sub_dir))
+
+
+def merge_backups(file1: str, file2: str):
+    """
+    Function that merges two backup file into a single one, appending the contents of one to the other
+
+    :param file1: str - the name of the first file
+    :param file2: str - the name of the second file
+    """
+
+    try:
+        with open(os.path.join("./backups/", file2), "r") as input_file:
+            with open(os.path.join("./backups/", file1), "a") as append_file:
+                for line in input_file:
+                    try:
+                        json.dump(line, append_file)
+                        append_file.write("\n")
+                    except UnicodeEncodeError:
+                        logger_err.error("Encoding error has occurred")
+                        return False
+    except (OSError, IOError):
+        logger_err.error("Error merging the files, skipping...")
+        return False
+    return True
 
 
 def cut_datasets(path: str, size_training: int, split_prop: float):

@@ -8,10 +8,10 @@ import logging_factory
 import date_utils
 import indexer
 import questioner
+import tools
 #####
 from psaw import PushshiftAPI
 from typing import Optional, Iterable
-
 #####
 logger_err = logging_factory.get_module_logger("fetcher_err", logging.ERROR)
 logger = logging_factory.get_module_logger("fetcher", logging.DEBUG)
@@ -115,7 +115,7 @@ def extract_historic_for_subreddit(subreddit: str, start_date: int):
 
 
 def extract_posts_for_interval(start_date: int, end_date: int, size: int, timestamp: int,
-                               exclude: Optional[str] = None):
+                               exclude: Optional[list] = None):
     """
     Function that extracts N (size) posts in a given time interval
 
@@ -123,11 +123,11 @@ def extract_posts_for_interval(start_date: int, end_date: int, size: int, timest
     :param end_date: str - the date to search to
     :param size: int - maximum number of posts to be retrieved
     :param timestamp: int - timestamp for the filename
-    :param exclude: str/None - the subreddit to skip
+    :param exclude: list[str]/None - the subreddits to skip
     :return dict - elapsed time performing the query and number of successfully saved documents
     """
 
-    to_skip = exclude if exclude is not None else ""
+    to_skip = exclude if exclude is not None else []
 
     # API
     api = PushshiftAPI()
@@ -156,7 +156,7 @@ def extract_posts_for_interval(start_date: int, end_date: int, size: int, timest
 
                 if bool(post) and test.startswith('{"id":'):
                     try:
-                        if to_skip != post["subreddit"]:
+                        if post["subreddit"] not in to_skip:
                             try:
                                 # File backup
                                 json.dump(post, outfile)
@@ -182,7 +182,7 @@ def extract_posts_for_interval(start_date: int, end_date: int, size: int, timest
 
 
 def obtain_reference_collection(path: str, max_block_size: int, posts_per_block: int, base_date: int,
-                                exclude: Optional[str] = None, posts: Optional[Iterable] = None):
+                                exclude: Optional[list] = None, posts: Optional[Iterable] = None):
     """
     Function that given the path of the backups file and the size of the posts' intervals creates a reference
     collection of random posts
@@ -193,7 +193,7 @@ def obtain_reference_collection(path: str, max_block_size: int, posts_per_block:
     :param max_block_size: int - number of posts per date interval
     :param posts_per_block: int - number of posts to obtain per interval
     :param base_date: int - the limit timestamp (posts must be older that this)
-    :param exclude: str/None - the subreddit to skip
+    :param exclude: list[str]/None - the subreddits to skip
     :param posts: Iterable - a generator from ElasticSearch (omits file specified in 'path' if so) /
     None -> defaults to textIO from file in the path specified as parameter
     """
@@ -224,8 +224,9 @@ def obtain_reference_collection(path: str, max_block_size: int, posts_per_block:
                 second_resp = extract_posts_for_interval(resp["start_date"], end_date, resp["current_block_size"] + 1,
                                                          timestamp, exclude)
                 # Join remaining
-                merged = merge_backups("ref_col_{}_{}.jsonl".format(max_block_size, timestamp),
-                                       "ref_col_{}_{}.jsonl".format(resp["current_block_size"] + 1, timestamp))
+                merged = file_manager.merge_backups("ref_col_{}_{}.jsonl".format(max_block_size, timestamp),
+                                                    "ref_col_{}_{}.jsonl".format(resp["current_block_size"] + 1,
+                                                                                 timestamp))
                 # Delete once completed
                 if merged:
                     file_manager.remove_file("./backups/ref_col_{}_{}.jsonl".format(resp["current_block_size"] + 1,
@@ -247,7 +248,7 @@ def obtain_reference_collection(path: str, max_block_size: int, posts_per_block:
 
 
 def generate_blocks(posts: Iterable, es: bool, max_block_size: int, posts_per_block: int, base_date: int,
-                    timestamp: int, exclude: Optional[str] = None):
+                    timestamp: int, exclude: Optional[list] = None):
     """
     Function that given an Iterable containing the posts, the interval between posts, the posts to generate within that
     interval, the base date (posts must be older than this date) and a timestamp for the filename returns a dictionary
@@ -259,7 +260,7 @@ def generate_blocks(posts: Iterable, es: bool, max_block_size: int, posts_per_bl
     :param posts_per_block: int - the amount of posts to be generated within the interval
     :param base_date: int - the limit timestamp (posts must be older that this)
     :param timestamp: int - the timestamp for the filename
-    :param exclude: str/None - the subreddit to skip
+    :param exclude: list[str]/None - the subreddits to skip
     :return: dict - all the data obtained during the generation of the collection
         current_block_size: int - posts remaining
         ok_docs: int - documents successfully saved
@@ -332,49 +333,26 @@ def generate_blocks(posts: Iterable, es: bool, max_block_size: int, posts_per_bl
     return result
 
 
-def merge_backups(file1: str, file2: str):
+def search_author_posts(username: str, save_path: str, before_date: int, exclude: Optional[list] = None):
     """
-    Function that merges two backup file into a single one, appending the contents of one to the other
-
-    :param file1: str - the name of the first file
-    :param file2: str - the name of the second file
-    """
-
-    try:
-        with open(os.path.join("./backups/", file2), "r") as input_file:
-            with open(os.path.join("./backups/", file1), "a") as append_file:
-                for line in input_file:
-                    try:
-                        json.dump(line, append_file)
-                        append_file.write("\n")
-                    except UnicodeEncodeError:
-                        logger_err.error("Encoding error has occurred")
-                        return False
-    except (OSError, IOError):
-        logger_err.error("Error merging the files, skipping...")
-        return False
-    return True
-
-
-def search_author_posts(username: str, save_path: str, exclude: Optional[str] = None):
-    """
-    Given an author searches all its posts in all subreddits (skipping, if necessary, the subreddit passed as parameter)
-    and writes them to a .jsonl file
+    Given an author searches all its posts in all subreddits (skipping, if necessary, the subreddits passed as
+    parameter) and writes them to a .jsonl file
 
     :param username: str - the author's username
     :param save_path: str - the path to save the posts of the selected author
-    :param exclude: str/None - the subreddit to skip
+    :param before_date: int - the epoch to starting searching from
+    :param exclude: list[str]/None - the subreddits to skip
     :return num_post: int - total number of posts found for the author
     """
 
-    to_skip = exclude if exclude is not None else ""
+    to_skip = exclude if exclude is not None else []
     num_posts = 0
 
     api = PushshiftAPI()
     response = api.search_submissions(author=username,
                                       sort_type="created_utc",
                                       sort="desc",
-                                      before=1577836800)
+                                      before=before_date)
 
     try:
         with open(save_path, "a") as outfile:
@@ -401,15 +379,16 @@ def search_author_posts(username: str, save_path: str, exclude: Optional[str] = 
     return num_posts
 
 
-def extract_authors_posts(path: str, save_path: str, log: bool, exclude: Optional[str] = None):
+def extract_authors_posts(path: str, save_path: str, before_date: int, log: bool, exclude: Optional[list] = None):
     """
     Given a path to file containing the data of the authors (.jsonl) creates a file containing all the posts made by
-    that users (a subreddit to skip can be also provided so that posts in that subreddit will be skipped)
+    that users (a list of subreddits to skip can be also provided so that posts in that subreddits will be skipped)
 
     :param path: str - the path to the file containing the data of the authors
     :param save_path: str - the path to the file to save all the posts of each author
+    :param before_date: int - the epoch to starting searching from
     :param log: bool - activates/deactivates logging of authors
-    :param exclude: str/None - the subreddit to skip
+    :param exclude: list[str]/None - the subreddits to skip
     """
 
     logger.debug("Extracting author posts...")
@@ -426,7 +405,7 @@ def extract_authors_posts(path: str, save_path: str, log: bool, exclude: Optiona
             total_authors = file_manager.count_lines_file(path)
             for i, a in enumerate(input_file, 1):
                 author_data = json.loads(a)
-                posts_found = search_author_posts(author_data["username"], save_path, exclude)
+                posts_found = search_author_posts(author_data["username"], save_path, before_date, exclude)
                 total_posts += posts_found
                 if log:
                     logger.debug("{}/{} - ({}: {} posts)".format(i, total_authors, author_data["username"],
@@ -437,114 +416,65 @@ def extract_authors_posts(path: str, save_path: str, log: bool, exclude: Optiona
     # Sort file by created_utc (oldest to newest)
     file_manager.sort_file(save_path, "created_utc")
 
-    end = time.time()  
+    end = time.time()
     elapsed_time = end - start
     logger.debug("Total elapsed time: {} for a total of {} posts found".format(elapsed_time, total_posts))
 
 
-def systematic_authors_sample(authors_info_path: str, sample_size: int):
+def count_author_posts(username: str, before_date: int, exclude: list):
     """
-    Given the path to a .jsonl file containing the info of the authors, generates another .jsonl file and an excel file
-    containing the authors selected using systematic sampling (of the size given as parameter)
+    Function that given an author name, the date to start searching from and the list of subreddits to skip, returns the
+    total post count
 
-    :param authors_info_path: str - path to the .jsonl file containing the info of the authors
-    :param sample_size: int - the size of the sample to be generated
+    :param username: str - the author's name
+    :param before_date: int - the epoch to starting searching from
+    :param exclude: list[str] - list of subreddit to skip
+    :return: int - the total count of posts
     """
 
-    import random
-    import math
-    import pandas as pd
+    api = PushshiftAPI()
+    response = api.search_submissions(author=username, before=before_date)
 
-    logger.debug("Starting systematic sampling generation...")
+    count = 0
+    for hit in response:
+        post = convert_response(hit, False)
+        test = json.dumps(post)
 
-    authors = []
-    # Load all the collection of users' data
-    try:
-        with open(authors_info_path, "r") as input_file:
-            for auth in input_file:
-                authors.append(json.loads(auth))
-    except (OSError, IOError):
-        logger_err.error("Read/Write error has occurred")
-    logger.debug("Total amount of authors in file: {}".format(len(authors)))
+        if bool(post) and test.startswith('{"id":'):
+            try:
+                if post["subreddit"] not in exclude:
+                    count += 1
+            except KeyError:
+                logger_err.error("Missing subreddit key and skipping post")
+                continue
 
-    selected = []
-    # Systematic sampling
-    k = len(authors) / sample_size
-    starting_point = random.random() * k
-    while starting_point <= len(authors):
-        index = math.ceil(starting_point) - 1
-        selected.append(authors[index])
-        starting_point += k
-
-    # Backup list to .jsonl and .xlsx
-    try:
-        with open("./data/subr_authors_selected.jsonl", "w+") as output:
-            for auth in selected:
-                output.write(json.dumps(auth))
-                output.write("\n")
-    except (OSError, IOError):
-        logger_err.error("Read/Write error has occurred")
-
-    df = pd.DataFrame(selected)
-    df.to_excel("./data/subr_authors_selected.xlsx")
-
-    logger.debug("Sample generated")
+    return count
 
 
-def obtain_authors_samples(authors_info_path: str, sample_size: int, subreddit_authors: str, months_diff: int,
+def obtain_authors_samples(authors_info_path: str, sample_size: int, subreddit_authors: str, days_diff: int,
                            similarity_karma: float):
     """
     Function that given the path containing the information of the users (preferably ordered by any means, i.e account
     identifier) and the size desired, performs a systematic sampling to randomly extract users (and backups them) and,
     afterwards, generates another collection based on the previous one so that the users are similar in account
-    creation time (by means of an user defined interval of months) and in comment and link karma punctuations
+    creation time (by means of an user defined interval of days) and in comment and link karma punctuations
     (by means of a percentage controlled by the user)
 
     :param authors_info_path: str - path to the .jsonl file containing the info of the authors
     :param sample_size: int - the size of the sample to be generated
     :param subreddit_authors: str - path to the file containing the name of the authors in a certain subreddit and used
     to skip them (.txt)
-    :param months_diff: int - interval of difference in months between accounts creation
-    [base - months_diff, base, base + months_diff]
-    :param similarity_karma: float - (0-1.0] Percentage of deviation of comment and karma punctuations between the
-    users provided and the users to be found
+    :param days_diff: int - interval of difference in days between accounts creation
+    [base - days_diff, base, base + days_diff]
+    :param similarity_karma: float - (0-1.0] Percentage of deviation of comment and karma punctuations between the users
+    provided and the users to be found
     """
 
     import questioner
 
-    systematic_authors_sample(authors_info_path, sample_size)
-    questioner.generate_reference_authors("./data/subr_authors_selected.jsonl", subreddit_authors, months_diff,
+    tools.systematic_authors_sample(authors_info_path, sample_size)
+    questioner.generate_reference_authors("./data/subr_authors_selected.jsonl", subreddit_authors, days_diff,
                                           similarity_karma)
-
-
-def obtain_usernames(subr_path: str):
-    """
-    Given the path of the backup, generates one .txt file containing the authors in the backup
-
-    :param subr_path: str - path to the file (i.e subreddit file)
-    """
-
-    subr_authors = set()
-
-    try:
-        with open(subr_path, "r") as input_file:
-            for line in input_file:
-                try:
-                    loaded = json.loads(line)
-                    author = loaded["author"]
-                    subr_authors.add(author)
-                except KeyError:
-                    logger_err.error("Error in author key with post with ID: {}".format(loaded["id"]))
-    except (OSError, IOError):
-        logger_err.error("Read/Write error has occurred")
-
-    try:
-        with open("./data/subr_authors.txt", "w") as output:
-            subr_authors_list = list(subr_authors)
-            for a in subr_authors_list:
-                output.write(a + "\n")
-    except (OSError, IOError):
-        logger_err.error("Read/Write error has occurred")
 
 
 def generate_subreddit_datasets(subreddit: str, before_date: int, max_block_size: int, posts_per_block: int):
@@ -566,59 +496,59 @@ def generate_subreddit_datasets(subreddit: str, before_date: int, max_block_size
 
     extract_historic_for_subreddit(subreddit, before_date)
     obtain_reference_collection("./backups/r_depression_base.jsonl", max_block_size, posts_per_block, before_date,
-                                subreddit, None)
+                                tools.list_excluded_subreddits("./data/dep_subreddits.txt", [subreddit]), None)
     logger.debug("Datasets generated")
 
 
-def generate_authors_samples(subreddit: str, sample_size: int, months_diff: int,
+def generate_authors_samples(subreddit: str, sample_size: int, before_date: int, days_diff: int,
                              similarity_karma: float, reddit_authors_path: Optional[str] = None,
-                             historic_path: Optional[str] = None, before_date: Optional[int] = None):
+                             historic_path: Optional[str] = None):
     """
-    Given a subreddit name, the sample size (for the systematic sampling), the difference in months and similarity karma
+    Given a subreddit name, the sample size (for the systematic sampling), the difference in days and similarity
     (explained below), the paths (optional) to the historic and to the file containing information about the redditors
     and, if path is not provided, the date to search from in the historic generation
 
     :param subreddit: str - the subreddit name
     :param sample_size: int - the size of the sample to be generated
-    :param months_diff: int - interval of difference in months between accounts creation
-    [base - months_diff, base, base + months_diff]
-    :param similarity_karma: float - (0-1.0] Percentage of deviation of comment and karma punctuations between the
-    users provided and the users to be found
+    :param before_date: int - the date to search from
+    :param days_diff: int - interval of difference in days between accounts creation
+    [base - days_diff, base, base + days_diff]
+    :param similarity_karma: float - (0-1.0] Percentage of deviation of comment and karma punctuations between the users
+    provided and the users to be found
     :param reddit_authors_path: str/None - path to the information about redditors
     :param historic_path: str/None - path to the historic file
-    :param before_date: int/None - the date to search from
-    :return:
     """
 
     logger.debug("Starting generation of datasets...")
 
-    if historic_path is None and before_date is not None:
+    if historic_path is None:
         # If we don't have the historic, generate it
         extract_historic_for_subreddit(subreddit, before_date)
-    elif historic_path is not None:
+    else:
         # Extract the usernames from the historic
-        obtain_usernames("./backups/r_depression_base.jsonl")
+        tools.obtain_usernames("./backups/r_depression_base.jsonl")
         if reddit_authors_path is not None:
             # If not already, index data about as many redditors as possible
             indexer.es_add_bulk(reddit_authors_path, "reddit_users_info")
         # Then, extract the information about the authors and index it aswell
         questioner.extract_authors_info("./data/subr_authors.txt")
         # Obtain the samples of authors
-        obtain_authors_samples("./backups/authors_info_backup.jsonl", sample_size, "./data/subr_authors.txt",
-                               months_diff, similarity_karma)
+        obtain_authors_samples("./backups/subr_authors_info_backup.jsonl", sample_size, "./data/subr_authors.txt",
+                               days_diff, similarity_karma)
         # Extract posts for both samples
-        extract_authors_posts("./data/subr_authors_selected.jsonl", "./backups/subr_author_posts.jsonl", False,
-                              subreddit)
-        extract_authors_posts("./data/ref_authors_selected.jsonl", "./backups/ref_author_posts.jsonl", False,
-                              subreddit)
-    else:
-        logger_err.error("Parameters incorrectly provided, check that 'path' and 'before_date' are valid")
+        extract_authors_posts("./data/subr_authors_selected.jsonl", "./backups/subr_author_posts.jsonl", before_date,
+                              False, [subreddit])
+        extract_authors_posts("./data/ref_authors_selected.jsonl", "./backups/ref_author_posts.jsonl", before_date,
+                              False, [subreddit])
     logger.debug("Datasets generated")
 
 
-# obtain_reference_collection("./backups/r_depression_base.jsonl", 100, 100, 1577836800, "depression", None)
-# extract_historic_for_subreddit("depression", 1577836800)
-# systematic_authors_sample("./backups/authors_info_backup.jsonl", 12000)
-# obtain_authors_samples("./backups/authors_info_backup.jsonl", 10000, "./data/subr_authors.txt", 6, 0.25)
-# extract_authors_posts("./data/subr_authors_selected.jsonl", "./backups/subr_author_posts.jsonl", "depression")
-# extract_authors_posts("./data/ref_authors_selected.jsonl", "./backups/ref_author_posts.jsonl", "depression")
+obtain_reference_collection("./backups/r_depression_base.jsonl", 100, 100, 1577836800, ["depression"], None)
+extract_historic_for_subreddit("depression", 1577836800)
+tools.systematic_authors_sample("./backups/subr_authors_info_backup.jsonl", 12000)
+obtain_authors_samples("./backups/subr_authors_info_backup.jsonl", 10000, "./data/subr_authors.txt", 30, 0.10)
+extract_authors_posts("./data/subr_authors_selected.jsonl", "./backups/subr_author_posts.jsonl", 1577836800, False,
+                      ["depression"])
+extract_authors_posts("./data/ref_authors_selected.jsonl", "./backups/ref_author_posts.jsonl", 1577836800, False,
+                      ["depression"])
+print(count_author_posts("phoenixfireball", 1577836800, ["depression"]))
