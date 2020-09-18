@@ -490,26 +490,6 @@ def systematic_authors_sample(authors_info_path: str, sample_size: int):
     logger.debug("Sample generated")
 
 
-def generate_backup_with_posts_count(path: str, before_date: int, exclude: list):
-    authors = []
-    try:
-        with open(path, "r") as input_file:
-            for auth in input_file:
-                authors.append(json.loads(auth))
-    except (OSError, IOError):
-        logger_err.error("Read/Write error has occurred")
-
-    for author in authors:
-        author["posts_count"] = count_author_posts(author["username"], before_date, exclude)
-
-    try:
-        with open("./backups/subr_authors_info_backup_wp.jsonl", "w") as input_file:
-            for auth in input_file:
-                authors.append(json.loads(auth))
-    except (OSError, IOError):
-        logger_err.error("Read/Write error has occurred")
-
-
 def count_author_posts(username: str, before_date: int, exclude: list):
     """
     Function that given an author name, the date to start searching from and the list of subreddits to skip, returns the
@@ -540,23 +520,36 @@ def count_author_posts(username: str, before_date: int, exclude: list):
     return count
 
 
-def list_excluded_subreddits(path: str, additional: Optional[str] = None):
+def list_excluded_subreddits(path: str, additional: Optional[list] = None):
+    """
+    Given a path to a file containing names of subreddits to be excluded and any other additional (and optional)
+    subreddits to be skipped returns a list containing all of them
+
+    :param path: str - path to the file (.txt - one name per line) with the subreddits to be skipped
+    :param additional: list - any other subreddits to be skipped (convenient for combining with other methods in the
+    project)
+    :return: list - the list with all the subreddits to be skipped
+    """
+
     subreddits = []
     try:
-        with open(path, "w+") as output:
-            for subreddit in output:
-                subreddits.append(subreddit.strip("\n"))
+        if os.path.isfile(path):
+            with open(path, "r") as output:
+                for subreddit in output:
+                    subreddits.append(subreddit.strip("\n"))
     except (OSError, IOError):
         logger_err.error("Read/Write error has occurred")
 
-    if additional is not None and additional not in subreddits:
-        subreddits.append(additional)
+    if additional is not None:
+        for s in additional:
+            if s not in subreddits:
+                subreddits.append(additional)
 
     return subreddits
 
 
 def obtain_authors_samples(authors_info_path: str, sample_size: int, subreddit_authors: str, days_diff: int,
-                           similarity: float):
+                           similarity_karma: float):
     """
     Function that given the path containing the information of the users (preferably ordered by any means, i.e account
     identifier) and the size desired, performs a systematic sampling to randomly extract users (and backups them) and,
@@ -570,15 +563,15 @@ def obtain_authors_samples(authors_info_path: str, sample_size: int, subreddit_a
     to skip them (.txt)
     :param days_diff: int - interval of difference in days between accounts creation
     [base - days_diff, base, base + days_diff]
-    :param similarity: float - (0-1.0] Percentage of deviation of comment and karma punctuations (and post number)
-    between the users provided and the users to be found
+    :param similarity_karma: float - (0-1.0] Percentage of deviation of comment and karma punctuations between the users
+    provided and the users to be found
     """
 
     import questioner
 
     systematic_authors_sample(authors_info_path, sample_size)
     questioner.generate_reference_authors("./data/subr_authors_selected.jsonl", subreddit_authors, days_diff,
-                                          similarity)
+                                          similarity_karma)
 
 
 def obtain_usernames(subr_path: str):
@@ -630,12 +623,12 @@ def generate_subreddit_datasets(subreddit: str, before_date: int, max_block_size
 
     extract_historic_for_subreddit(subreddit, before_date)
     obtain_reference_collection("./backups/r_depression_base.jsonl", max_block_size, posts_per_block, before_date,
-                                list_excluded_subreddits("./data/dep_subreddits.txt", subreddit), None)
+                                list_excluded_subreddits("./data/dep_subreddits.txt", [subreddit]), None)
     logger.debug("Datasets generated")
 
 
 def generate_authors_samples(subreddit: str, sample_size: int, days_diff: int,
-                             similarity: float, reddit_authors_path: Optional[str] = None,
+                             similarity_karma: float, reddit_authors_path: Optional[str] = None,
                              historic_path: Optional[str] = None, before_date: Optional[int] = None):
     """
     Given a subreddit name, the sample size (for the systematic sampling), the difference in days and similarity
@@ -646,8 +639,8 @@ def generate_authors_samples(subreddit: str, sample_size: int, days_diff: int,
     :param sample_size: int - the size of the sample to be generated
     :param days_diff: int - interval of difference in days between accounts creation
     [base - days_diff, base, base + days_diff]
-    :param similarity: float - (0-1.0] Percentage of deviation of comment and karma punctuations (and post number)
-    between the users provided and the users to be found
+    :param similarity_karma: float - (0-1.0] Percentage of deviation of comment and karma punctuations between the users
+    provided and the users to be found
     :param reddit_authors_path: str/None - path to the information about redditors
     :param historic_path: str/None - path to the historic file
     :param before_date: int/None - the date to search from
@@ -669,12 +662,12 @@ def generate_authors_samples(subreddit: str, sample_size: int, days_diff: int,
         questioner.extract_authors_info("./data/subr_authors.txt")
         # Obtain the samples of authors
         obtain_authors_samples("./backups/subr_authors_info_backup.jsonl", sample_size, "./data/subr_authors.txt",
-                               days_diff, similarity)
+                               days_diff, similarity_karma)
         # Extract posts for both samples
         extract_authors_posts("./data/subr_authors_selected.jsonl", "./backups/subr_author_posts.jsonl", False,
-                              ["depression"])
+                              [subreddit])
         extract_authors_posts("./data/ref_authors_selected.jsonl", "./backups/ref_author_posts.jsonl", False,
-                              ["depression"])
+                              [subreddit])
     else:
         logger_err.error("Parameters incorrectly provided, check that 'path' and 'before_date' are valid")
     logger.debug("Datasets generated")

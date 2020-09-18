@@ -99,7 +99,7 @@ def clean_sample(not_found: list, authors_info: str):
     df.to_excel("./data/subr_authors_selected.xlsx")
 
 
-def generate_reference_authors(authors_info: str, subreddit_authors: str, days_diff: int, similarity: float):
+def generate_reference_authors(authors_info: str, subreddit_authors: str, days_diff: int, similarity_karma: float):
     """
     Function that given a file containing data about the author selected via systematic sampling and a file containing
     the names of the authors to omit, generates two files (.jsonl and .xlsx) with authors that are similar in account
@@ -111,8 +111,8 @@ def generate_reference_authors(authors_info: str, subreddit_authors: str, days_d
     to skip them (.txt)
     :param days_diff: int - interval of difference in days between accounts creation
     [base - days, base, base + days]
-    :param similarity: float - (0-1.0] Percentage of deviation of comment and karma punctuations (and post number)
-    between the users provided and the users to be found
+    :param similarity_karma: float - (0-1.0] Percentage of deviation of comment and karma punctuations between the users
+    provided and the users to be found
     """
 
     import date_utils as d
@@ -124,9 +124,6 @@ def generate_reference_authors(authors_info: str, subreddit_authors: str, days_d
 
     # Usernames already found
     usernames_found = set()
-
-    # Authors with pair found
-    authors_with_pair = []
 
     host, port = "localhost", 9200
     es = Elasticsearch(hosts=[{"host": host, "port": port}])
@@ -162,14 +159,11 @@ def generate_reference_authors(authors_info: str, subreddit_authors: str, days_d
                 found = response.hits[0]
                 # Extract the information
                 created, comment, link = int(found.created), int(found.comment_karma), int(found.link_karma)
-                found_posts = fetcher.count_author_posts(found.username, 1577836800, fetcher.list_excluded_subreddits(
-                    "./data/dep_subreddits.txt"))
 
                 # And create the ranges
                 ranges = [[d.substract_days_from_epoch(created, days_diff), d.add_days_to_epoch(created, days_diff)],
-                          [comment - comment * similarity, comment + comment * similarity],
-                          [link - link * similarity, link + link * similarity],
-                          [found_posts - found_posts * similarity, found_posts + found_posts * similarity]]
+                          [comment - comment * similarity_karma, comment + comment * similarity_karma],
+                          [link - link * similarity_karma, link + link * similarity_karma]]
 
                 # Define queries for each field to be contained in the given intervals
                 q = Q("range", created={"gte": ranges[0][0], "lte": ranges[0][1]}) & \
@@ -182,21 +176,13 @@ def generate_reference_authors(authors_info: str, subreddit_authors: str, days_d
 
                     is_found = False
                     for hit in response2:
-                        posts_count = fetcher.count_author_posts(hit.username, 1577836800,
-                                                                 fetcher.list_excluded_subreddits(
-                                                                     "./data/dep_subreddits.txt"))
-                        valid_posts = ranges[3][0] <= posts_count & posts_count <= ranges[3][1]
                         # Make sure that our user is not present in the list of all users who have ever published in the
                         # subreddit (i.e r/depression), is not the same we are using to find the pair and is not already
                         # in the list of users found (and that complies with the interval of posts)
-                        if valid_posts and hit.username not in dep_authors and hit.username not in usernames_found and \
-                                found.username is not hit.username:
+                        if hit.username not in dep_authors and hit.username not in usernames_found \
+                                and found.username is not hit.username:
                             is_found = True
                             usernames_found.add(hit.username)
-
-                            auth = json.loads(author)
-                            auth["posts_count"] = found
-                            authors_with_pair.append(auth)
 
                             result.append({"acc_id": hit.acc_id,
                                            "username": hit.username,
@@ -204,7 +190,6 @@ def generate_reference_authors(authors_info: str, subreddit_authors: str, days_d
                                            "updated": hit.updated,
                                            "comment_karma": hit.comment_karma,
                                            "link_karma": hit.link_karma,
-                                           "posts_count": posts_count
                                            })
                             break  # We only want the first user found
                     if is_found is False:
