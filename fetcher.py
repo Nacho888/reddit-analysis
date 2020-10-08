@@ -194,7 +194,7 @@ def obtain_reference_collection(path: str, max_block_size: int, posts_per_block:
     :param posts_per_block: int - number of posts to obtain per interval
     :param base_date: int - the limit timestamp (posts must be older that this)
     :param exclude: list[str]/None - the subreddits to skip
-    :param posts: Iterable - a generator from ElasticSearch (omits file specified in 'path' if so) /
+    :param posts: Iterable - a generator from Elasticsearch (omits file specified in 'path' if so) /
     None -> defaults to textIO from file in the path specified as parameter
     """
 
@@ -255,7 +255,7 @@ def generate_blocks(posts: Iterable, es: bool, max_block_size: int, posts_per_bl
     containing the information about the operation performed
 
     :param posts: Iterable - posts to obtain the intervals from
-    :param es: bool - True if the posts are coming from ElasticSearch, False otherwise
+    :param es: bool - True if the posts are coming from Elasticsearch, False otherwise
     :param max_block_size: int - the posts to skip to find a new date
     :param posts_per_block: int - the amount of posts to be generated within the interval
     :param base_date: int - the limit timestamp (posts must be older that this)
@@ -362,7 +362,7 @@ def search_author_posts(username: str, save_path: str, before_date: int, exclude
 
                 if bool(post) and test.startswith('{"id":'):
                     try:
-                        if to_skip != post["subreddit"]:
+                        if post["subreddit"] not in to_skip:
                             try:
                                 # File backup
                                 json.dump(post, outfile)

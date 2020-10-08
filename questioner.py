@@ -14,7 +14,7 @@ logger = logging_factory.get_module_logger("questioner", logging.DEBUG)
 
 def extract_authors_info(authors_path: str):
     """
-    Given a .txt file containing the names of the authors, searches in an ElasticSearch index their corresponding
+    Given a .txt file containing the names of the authors, searches in an Elasticsearch index their corresponding
     information (for reddit: account identifier, username, date of creation, date of retrieval, comment and
     link karma punctuation). Generates a .jsonl file containing all the authors info sorted by their account id.
 
@@ -54,9 +54,9 @@ def extract_authors_info(authors_path: str):
                                        "link_karma": hit.link_karma
                                        })
                 except (ConnectionError, ConnectionTimeout):
-                    logger_err.error("Error communicating with ElasticSearch - host: {}, port: {}".format(host, port))
+                    logger_err.error("Error communicating with Elasticsearch - host: {}, port: {}".format(host, port))
                 except TransportError:
-                    logger_err.error("Errored ElasticSearch query: 'filter'")
+                    logger_err.error("Errored Elasticsearch query: 'filter'")
 
                 logger.debug("Chunk {}/{} processed".format(processed, n_chunks))
                 processed += 1
@@ -75,7 +75,7 @@ def extract_authors_info(authors_path: str):
     except (OSError, IOError):
         logger_err.error("Read/Write error has occurred")
 
-    # Save to data to ElasticSearch
+    # Save to data to Elasticsearch
     indexer.es_add_bulk("./data/subr_authors_info_backup.jsonl", "r_depression_authors_info")
     logger.debug("Data successfully indexed")
 
@@ -194,11 +194,11 @@ def generate_reference_authors(authors_info: str, subreddit_authors: str, days_d
                     if is_found is False:
                         not_found.append(found.username)
                 except TransportError:
-                    logger_err.error("Errored ElasticSearch query: {}".format(str(q)))
+                    logger_err.error("Errored Elasticsearch query: {}".format(str(q)))
         except (ConnectionError, ConnectionTimeout):
-            logger_err.error("Error communicating with ElasticSearch - host: {}, port: {}".format(host, port))
+            logger_err.error("Error communicating with Elasticsearch - host: {}, port: {}".format(host, port))
         except TransportError:
-            logger_err.error("Errored ElasticSearch query: 'match'")
+            logger_err.error("Errored Elasticsearch query: 'match'")
 
     logger.debug("Total amount of authors found: {}".format(len(result)))
 
