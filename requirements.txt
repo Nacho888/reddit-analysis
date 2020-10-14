@@ -10,3 +10,4 @@ swifter
 jupyter
 DateTime>=4.3
 python-dateutil>=2.8.1
+wordcloud
