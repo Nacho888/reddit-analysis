@@ -190,11 +190,11 @@ def obtain_reference_collection(path: str, max_block_size: int, posts_per_block:
     # 1 January 2020 00:00:00 (GMT +00:00) -> 1577836800
 
     :param path: str - the path to the backups file
-    :param max_block_size: int - number of posts per date interval
+    :param max_block_size: int - limit of posts per date interval
     :param posts_per_block: int - number of posts to obtain per interval
     :param base_date: int - the limit timestamp (posts must be older that this)
     :param exclude: list[str]/None - the subreddits to skip
-    :param posts: Iterable - a generator from Elasticsearch (omits file specified in 'path' if so) /
+    :param posts: Iterable - a generator from ElasticSearch (omits file specified in 'path' if so) /
     None -> defaults to textIO from file in the path specified as parameter
     """
 
@@ -217,23 +217,22 @@ def obtain_reference_collection(path: str, max_block_size: int, posts_per_block:
 
     if resp:
         end_date = resp["end_date"]
-        if resp["current_block_size"] > 0:
+        if resp["current_block_size"] > 0 and resp["start_date"] < base_date:
             # Write remaining
-            if resp["start_date"] < base_date:
-                end_date = resp["last_post"]["created_utc"]
-                second_resp = extract_posts_for_interval(resp["start_date"], end_date, resp["current_block_size"] + 1,
-                                                         timestamp, exclude)
-                # Join remaining
-                merged = file_manager.merge_backups("ref_col_{}_{}.jsonl".format(max_block_size, timestamp),
-                                                    "ref_col_{}_{}.jsonl".format(resp["current_block_size"] + 1,
-                                                                                 timestamp))
-                # Delete once completed
-                if merged:
-                    file_manager.remove_file("./backups/ref_col_{}_{}.jsonl".format(resp["current_block_size"] + 1,
-                                                                                    timestamp))
+            end_date = resp["last_post"]["created_utc"]
+            second_resp = extract_posts_for_interval(resp["start_date"], end_date, resp["current_block_size"],
+                                                     timestamp, exclude)
+            # Join remaining
+            merged = file_manager.merge_backups("ref_col_{}_{}.jsonl".format(max_block_size, timestamp),
+                                                "ref_col_{}_{}.jsonl".format(resp["current_block_size"],
+                                                                             timestamp))
+            # Delete once completed
+            if merged:
+                file_manager.remove_file("./backups/ref_col_{}_{}.jsonl".format(resp["current_block_size"],
+                                                                                timestamp))
 
-                resp["total_time"] += second_resp["elapsed_time"]  # Add the time spent with the remaining documents
-                resp["ok_docs"] += second_resp["ok_docs"]  # Add the successful documents
+            resp["total_time"] += second_resp["elapsed_time"]  # Add the time spent with the remaining documents
+            resp["ok_docs"] += second_resp["ok_docs"]  # Add the successful documents
 
         logger.debug("Generated documents between {} and {} with {} documents per interval (size {})".format(
             date_utils.convert_to_iso_date_str(resp["initial_date"]),
@@ -255,7 +254,7 @@ def generate_blocks(posts: Iterable, es: bool, max_block_size: int, posts_per_bl
     containing the information about the operation performed
 
     :param posts: Iterable - posts to obtain the intervals from
-    :param es: bool - True if the posts are coming from Elasticsearch, False otherwise
+    :param es: bool - True if the posts are coming from ElasticSearch, False otherwise
     :param max_block_size: int - the posts to skip to find a new date
     :param posts_per_block: int - the amount of posts to be generated within the interval
     :param base_date: int - the limit timestamp (posts must be older that this)
@@ -303,6 +302,7 @@ def generate_blocks(posts: Iterable, es: bool, max_block_size: int, posts_per_bl
                 skipped += 1
             else:
                 initial_date = temp["created_utc"]
+                current_block_size += 1
 
         else:
             current_block_size += 1
@@ -543,12 +543,12 @@ def generate_authors_samples(subreddit: str, sample_size: int, before_date: int,
     logger.debug("Datasets generated")
 
 
-obtain_reference_collection("./backups/r_depression_base.jsonl", 100, 100, 1577836800, ["depression"], None)
-extract_historic_for_subreddit("depression", 1577836800)
-tools.systematic_authors_sample("./backups/subr_authors_info_backup.jsonl", 12000)
-obtain_authors_samples("./backups/subr_authors_info_backup.jsonl", 10000, "./data/subr_authors.txt", 30, 0.10)
-extract_authors_posts("./data/subr_authors_selected.jsonl", "./backups/subr_author_posts.jsonl", 1577836800, False,
-                      ["depression"])
-extract_authors_posts("./data/ref_authors_selected.jsonl", "./backups/ref_author_posts.jsonl", 1577836800, False,
-                      ["depression"])
-print(count_author_posts("phoenixfireball", 1577836800, ["depression"]))
+# obtain_reference_collection("./backups/r_depression_base.jsonl", 100, 100, 1577836800, ["depression"], None)
+# extract_historic_for_subreddit("depression", 1577836800)
+# tools.systematic_authors_sample("./backups/subr_authors_info_backup.jsonl", 12000)
+# obtain_authors_samples("./backups/subr_authors_info_backup.jsonl", 10000, "./data/subr_authors.txt", 30, 0.10)
+# extract_authors_posts("./data/subr_authors_selected.jsonl", "./backups/subr_author_posts.jsonl", 1577836800, False,
+#                       ["depression"])
+# extract_authors_posts("./data/ref_authors_selected.jsonl", "./backups/ref_author_posts.jsonl", 1577836800, False,
+#                       ["depression"])
+# print(count_author_posts("phoenixfireball", 1577836800, ["depression"]))

@@ -81,6 +81,14 @@ def extract_authors_info(authors_path: str):
 
 
 def clean_sample(not_found: list, authors_info: str):
+    """
+        Given a list of users that for whom a pair was not found and the path to the original sample,
+        overwrites the sample with the users not appearing in that list.
+
+        :param not_found: list[str] - the usernames of the users to remove
+        :param authors_info: str - path to the original sampled file containing all the information about
+        the authors
+    """
     authors = []
     try:
         with open(authors_info, "r") as file:
