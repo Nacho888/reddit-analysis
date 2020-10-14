@@ -187,7 +187,7 @@ def generate_reference_authors(authors_info: str, subreddit_authors: str, days_d
                         # subreddit (i.e r/depression), is not the same we are using to find the pair and is not already
                         # in the list of users found (and that complies with the interval of posts)
                         if hit.username not in dep_authors and hit.username not in usernames_found \
-                                and found.username is not hit.username:
+                                and found.username is not hit.username and hit.username != "[deleted]":
                             is_found = True
                             usernames_found.add(hit.username)
 
