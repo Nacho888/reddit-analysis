@@ -94,7 +94,7 @@ def es_add_bulk(path: str, index_name: str):
             helpers.bulk(es, k)
             fh.close()
         except (ConnectionError, ConnectionTimeout):
-            logger_err.error("Error communicating with ElasticSearch - host: {}, port: {}".format(host, port))
+            logger_err.error("Error communicating with Elasticsearch - host: {}, port: {}".format(host, port))
         except BulkIndexError:
             logger_err.error("Errored encountered while indexing the data")
 

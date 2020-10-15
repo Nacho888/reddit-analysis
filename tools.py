@@ -25,7 +25,8 @@ def obtain_usernames(subr_path: str):
                 try:
                     loaded = json.loads(line)
                     author = loaded["author"]
-                    subr_authors.add(author)
+                    if author != "[deleted]":
+                        subr_authors.add(author)
                 except KeyError:
                     logger_err.error("Error in author key with post with ID: {}".format(loaded["id"]))
     except (OSError, IOError):

@@ -14,7 +14,7 @@ logger = logging_factory.get_module_logger("questioner", logging.DEBUG)
 
 def extract_authors_info(authors_path: str):
     """
-    Given a .txt file containing the names of the authors, searches in an ElasticSearch index their corresponding
+    Given a .txt file containing the names of the authors, searches in an Elasticsearch index their corresponding
     information (for reddit: account identifier, username, date of creation, date of retrieval, comment and
     link karma punctuation). Generates a .jsonl file containing all the authors info sorted by their account id.
 
@@ -54,9 +54,9 @@ def extract_authors_info(authors_path: str):
                                        "link_karma": hit.link_karma
                                        })
                 except (ConnectionError, ConnectionTimeout):
-                    logger_err.error("Error communicating with ElasticSearch - host: {}, port: {}".format(host, port))
+                    logger_err.error("Error communicating with Elasticsearch - host: {}, port: {}".format(host, port))
                 except TransportError:
-                    logger_err.error("Errored ElasticSearch query: 'filter'")
+                    logger_err.error("Errored Elasticsearch query: 'filter'")
 
                 logger.debug("Chunk {}/{} processed".format(processed, n_chunks))
                 processed += 1
@@ -75,12 +75,20 @@ def extract_authors_info(authors_path: str):
     except (OSError, IOError):
         logger_err.error("Read/Write error has occurred")
 
-    # Save to data to ElasticSearch
+    # Save to data to Elasticsearch
     indexer.es_add_bulk("./data/subr_authors_info_backup.jsonl", "r_depression_authors_info")
     logger.debug("Data successfully indexed")
 
 
 def clean_sample(not_found: list, authors_info: str):
+    """
+        Given a list of users that for whom a pair was not found and the path to the original sample,
+        overwrites the sample with the users not appearing in that list.
+
+        :param not_found: list[str] - the usernames of the users to remove
+        :param authors_info: str - path to the original sampled file containing all the information about
+        the authors
+    """
     authors = []
     try:
         with open(authors_info, "r") as file:
@@ -179,7 +187,7 @@ def generate_reference_authors(authors_info: str, subreddit_authors: str, days_d
                         # subreddit (i.e r/depression), is not the same we are using to find the pair and is not already
                         # in the list of users found (and that complies with the interval of posts)
                         if hit.username not in dep_authors and hit.username not in usernames_found \
-                                and found.username is not hit.username:
+                                and found.username is not hit.username and hit.username != "[deleted]":
                             is_found = True
                             usernames_found.add(hit.username)
 
@@ -194,11 +202,11 @@ def generate_reference_authors(authors_info: str, subreddit_authors: str, days_d
                     if is_found is False:
                         not_found.append(found.username)
                 except TransportError:
-                    logger_err.error("Errored ElasticSearch query: {}".format(str(q)))
+                    logger_err.error("Errored Elasticsearch query: {}".format(str(q)))
         except (ConnectionError, ConnectionTimeout):
-            logger_err.error("Error communicating with ElasticSearch - host: {}, port: {}".format(host, port))
+            logger_err.error("Error communicating with Elasticsearch - host: {}, port: {}".format(host, port))
         except TransportError:
-            logger_err.error("Errored ElasticSearch query: 'match'")
+            logger_err.error("Errored Elasticsearch query: 'match'")
 
     logger.debug("Total amount of authors found: {}".format(len(result)))
 

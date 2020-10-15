@@ -1,4 +1,4 @@
-pandas
+pandas>=1.1.2
 sklearn
 nltk
 clean-text
@@ -8,3 +8,6 @@ elasticsearch>=7.5.1
 elasticsearch_dsl
 swifter
 jupyter
+DateTime>=4.3
+python-dateutil>=2.8.1
+wordcloud
