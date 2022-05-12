@@ -17,51 +17,54 @@ logger_err = logging_factory.get_module_logger("fetcher_err", logging.ERROR)
 logger = logging_factory.get_module_logger("fetcher", logging.DEBUG)
 
 
-def convert_response(post: dict, full_data: bool):
+def convert_response(data: dict, full_data: bool, comment: bool = False):
     """
     Function to convert the response into a list with all the required data
 
-    :param post: dict - the input dictionary with all the data of the post (we only mind the key "d_" where all the
+    :param data: dict - the input dictionary with all the data of the post/comment (we only mind the key "d_" where all the
     important data is stored)
-    :param full_data: bool - if you want the full data of the post (even if errored)
-    :return: updated_post: dict - the post the return containing only the required fields returned by the API
+    :param full_data: bool - if you want the full data of the post/comment (even if errored)
+    :param comment: bool - True if you want to convert a comment, False for a post
+    :return: updated_data: dict - the post/comment the return containing only the required fields returned by the API
     """
 
     keys_as_str = ["id", "url", "title", "author", "selftext", "created_utc", "retrieved_on", "subreddit",
                    "subreddit_id", "subreddit_type", "domain", "gildings", "num_comments", "score", "over_18",
-                   "permalink"]
+                   "permalink"] if not comment else ["id", "link_id", "parent_id", "author", "body", "created_utc", "retrieved_on", "subreddit",
+                   "subreddit_id", "guilded"]
 
     if not full_data:
         try:
-            p_id = post.d_["id"]
+            d_id = data.d_["id"]
         except KeyError:
-            p_id = "no_id"
+            d_id = "no_id"
 
         try:
-            post_keys = [*post.d_]
-            to_use_keys = [value for value in keys_as_str if value in post_keys]
+            d_keys = [*data.d_]
+            to_use_keys = [value for value in keys_as_str if value in d_keys]
 
-            updated_post = {}
+            updated_data = {}
 
             for key in to_use_keys:
-                updated_post[key] = post.d_[key]
+                updated_data[key] = data.d_[key]
 
         except KeyError as e:
-            logger_err.error("Key not found [{}] - skipping post with id: {}".format(e, p_id))
-            updated_post = {}  # if it doesn't have all the requested fields, discard the whole post
+            logger_err.error("Key not found [{}] - skipping post with id: {}".format(e, d_id))
+            updated_data = {}  # if it doesn't have all the requested fields, discard the whole post
     else:
-        updated_post = post.d_
+        updated_data = data.d_
 
-    return updated_post
+    return updated_data
 
 
-def extract_historic_for_subreddit(subreddit: str, start_date: Optional[int] = None):
+def extract_historic_for_subreddit(subreddit: str, comments: bool = False, start_date: Optional[int] = None):
     """
     Function that given a subreddit and the date to search from, performs a full historical search of all the posts
     of that subreddit and dumps them to a file
 
     :param subreddit: str - the subreddit name
-    :param start_date: int - the base date to search from
+    :param start_date: [int]/None - the base date to search from
+    :param comments: bool - True if you want to extract the comments, False for submissions
     """
 
     # To put the timestamp in the filename
@@ -70,7 +73,9 @@ def extract_historic_for_subreddit(subreddit: str, start_date: Optional[int] = N
     # API
     api = PushshiftAPI()
 
-    #####
+    ###
+
+    file_str = "comments" if comments else "posts"
 
     # Count of correct docs saved
     ok_docs = 0
@@ -78,17 +83,21 @@ def extract_historic_for_subreddit(subreddit: str, start_date: Optional[int] = N
     # Measure elapsed time
     start = time.time()
 
-    logger.debug("Starting generation of '{}' subreddit historic...".format(subreddit))
+    logger.debug("Starting generation of '{}' ({}) subreddit historic...".format(subreddit, file_str))
 
     if subreddit is not None:
         start_date = start_date if start_date is not None else timestamp
-        response = api.search_submissions(q="", subreddit=subreddit, sort_type="created_utc", sort="desc",
+        if comments:
+            response = api.search_comments(q="", subreddit=subreddit, sort_type="created_utc", sort="desc",
+                                          before=start_date)
+        else:
+            response = api.search_submissions(q="", subreddit=subreddit, sort_type="created_utc", sort="desc",
                                           before=start_date)
 
         try:
-            with open(os.path.join("./backups/", "r_{}_base.jsonl".format(subreddit, timestamp)), "a") as outfile:
-                for resp_post in response:
-                    post = convert_response(resp_post, False)
+            with open(os.path.join("./backups/", "r_{}_{}_{}_base.jsonl".format(subreddit, file_str, timestamp)), "a") as outfile:
+                for resp in response:
+                    post = convert_response(resp, False, comments)
                     test = json.dumps(post)
 
                     if bool(post) and test.startswith('{"id":'):
@@ -545,7 +554,8 @@ def generate_authors_samples(subreddit: str, sample_size: int, before_date: int,
 
 
 # obtain_reference_collection("./backups/r_depression_base.jsonl", 100, 100, 1577836800, ["depression"], None)
-extract_historic_for_subreddit("immigration", 1577836800)
+extract_historic_for_subreddit("immigration")
+extract_historic_for_subreddit("immigration", True)
 # tools.systematic_authors_sample("./backups/subr_authors_info_backup.jsonl", 12000)
 # obtain_authors_samples("./backups/subr_authors_info_backup.jsonl", 10000, "./data/subr_authors.txt", 30, 0.10)
 # extract_authors_posts("./data/subr_authors_selected.jsonl", "./backups/subr_author_posts.jsonl", 1577836800, False,

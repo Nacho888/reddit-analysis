@@ -116,3 +116,49 @@ def systematic_authors_sample(authors_info_path: str, sample_size: int):
     df.to_excel("./data/subr_authors_selected.xlsx")
 
     logger.debug("Sample generated")
+
+
+def link_comments_and_submissions(submissions_path: str, comments_path: str, merge_path: str, remove_op: bool = False):
+    """
+    Given the paths to the submissions and comments files, generates a .jsonl file containing the links between them
+
+    :param submissions_path: str - path to the submissions file
+    :param comments_path: str - path to the comments file
+    :param merge_path: str - path to the file to be generated
+    :param remove_op: bool - whether to remove OP comments
+    """
+
+    merge_path = merge_path if not remove_op else merge_path.replace(".jsonl", "_no_op.jsonl")
+    with open(merge_path, "a") as outfile:
+        with open(submissions_path, "r") as submissions_file:
+            for submission in submissions_file:
+                submission = json.loads(submission)
+                submission_id = submission["id"]
+                op = submission["author"]
+                comments = get_all_comments_for_id(submission_id, comments_path, remove_op, op)
+                submission["comments"] = comments
+                if submission["num_comments"] != len(comments):
+                    logger.debug(f"Submission {submission_id} has{submission['num_comments']} comments, but {len(comments)} comments were found")
+                json.dump(submission, outfile)
+
+
+def get_all_comments_for_id(submissions_id: str, comments_path: str, remove_op: bool = False, op: Optional[str] = None):
+    """
+    Given the ID of a submission, returns all the comments related to it
+
+    :param submissions_id: str - ID of the submission
+    :return: list - list of comments
+    """
+
+    comments = []
+    with open(comments_path, "r") as comments_file:
+        for comment in comments_file:
+            comment = json.loads(comment)
+            comment_id = comment["link_id"]
+            if comment_id == submissions_id:
+                if remove_op and comment["author"] == op:
+                    continue
+                else:
+                    comments.append(comment)
+
+    return comments
