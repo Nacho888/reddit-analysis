@@ -95,7 +95,7 @@ def extract_historic_for_subreddit(subreddit: str, comments: bool = False, start
                                           before=start_date)
 
         try:
-            with open(os.path.join("./backups/", "r_{}_{}_{}_base.jsonl".format(subreddit, file_str, timestamp)), "a") as outfile:
+            with open(os.path.join("./backups/", "r_{}_{}_{}_base.jsonl".format(subreddit, file_str, start_date)), "a") as outfile:
                 for resp in response:
                     post = convert_response(resp, False, comments)
                     test = json.dumps(post)
@@ -554,8 +554,8 @@ def generate_authors_samples(subreddit: str, sample_size: int, before_date: int,
 
 
 # obtain_reference_collection("./backups/r_depression_base.jsonl", 100, 100, 1577836800, ["depression"], None)
-extract_historic_for_subreddit("immigration")
-extract_historic_for_subreddit("immigration", True)
+#extract_historic_for_subreddit("immigration")
+extract_historic_for_subreddit("immigration", True, 1652365845)
 # tools.systematic_authors_sample("./backups/subr_authors_info_backup.jsonl", 12000)
 # obtain_authors_samples("./backups/subr_authors_info_backup.jsonl", 10000, "./data/subr_authors.txt", 30, 0.10)
 # extract_authors_posts("./data/subr_authors_selected.jsonl", "./backups/subr_author_posts.jsonl", 1577836800, False,
