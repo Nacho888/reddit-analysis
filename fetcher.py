@@ -55,7 +55,7 @@ def convert_response(post: dict, full_data: bool):
     return updated_post
 
 
-def extract_historic_for_subreddit(subreddit: str, start_date: int):
+def extract_historic_for_subreddit(subreddit: str, start_date: Optional[int] = None):
     """
     Function that given a subreddit and the date to search from, performs a full historical search of all the posts
     of that subreddit and dumps them to a file
@@ -81,6 +81,7 @@ def extract_historic_for_subreddit(subreddit: str, start_date: int):
     logger.debug("Starting generation of '{}' subreddit historic...".format(subreddit))
 
     if subreddit is not None:
+        start_date = start_date if start_date is not None else timestamp
         response = api.search_submissions(q="", subreddit=subreddit, sort_type="created_utc", sort="desc",
                                           before=start_date)
 
@@ -544,7 +545,7 @@ def generate_authors_samples(subreddit: str, sample_size: int, before_date: int,
 
 
 # obtain_reference_collection("./backups/r_depression_base.jsonl", 100, 100, 1577836800, ["depression"], None)
-# extract_historic_for_subreddit("depression", 1577836800)
+extract_historic_for_subreddit("immigration", 1577836800)
 # tools.systematic_authors_sample("./backups/subr_authors_info_backup.jsonl", 12000)
 # obtain_authors_samples("./backups/subr_authors_info_backup.jsonl", 10000, "./data/subr_authors.txt", 30, 0.10)
 # extract_authors_posts("./data/subr_authors_selected.jsonl", "./backups/subr_author_posts.jsonl", 1577836800, False,
